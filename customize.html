@@ -1,0 +1,1372 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>產品客製化預覽</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; }
+  body {
+    font-family: -apple-system, "Segoe UI", "PingFang TC", "Microsoft JhengHei", sans-serif;
+    background: #f5f5f7;
+    color: #1d1d1f;
+  }
+  .app {
+    display: flex;
+    height: 100vh;
+    min-height: 100vh;
+    background: #fff;
+    overflow: hidden;
+  }
+
+  .sidebar {
+    width: 72px;
+    flex-shrink: 0;
+    background: #fff;
+    border-right: 1px solid #e8e8ed;
+    padding: 16px 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+  }
+  .nav-item {
+    width: 56px;
+    padding: 10px 0;
+    text-align: center;
+    border-radius: 8px;
+    cursor: pointer;
+    color: #6e6e73;
+    transition: background 0.15s;
+    user-select: none;
+  }
+  .nav-item:hover { background: #f5f5f7; }
+  .nav-item.active { color: #1d1d1f; background: #f0f0f3; }
+  .nav-item svg { display: block; margin: 0 auto 4px; }
+  .nav-item span { font-size: 12px; }
+
+  .panel {
+    width: 320px;
+    flex-shrink: 0;
+    height: 100vh;
+    border-right: 1px solid #e8e8ed;
+    padding: 20px 16px;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+  .panel-title {
+    font-size: 13px;
+    color: #6e6e73;
+    margin-bottom: 12px;
+    padding: 0 4px;
+  }
+  .panel-title-row { display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:12px; padding:0 4px; }
+  .panel-title-row .panel-title { margin-bottom:0; padding:0; }
+  .refresh-btn { border:1px solid #d2d2d7; background:#fff; border-radius:7px; padding:5px 8px; font-size:12px; cursor:pointer; color:#1d1d1f; }
+  .refresh-btn:hover { background:#f5f5f7; }
+  .hidden { display: none !important; }
+
+  .folder-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 12px;
+    border: 1.5px solid #e8e8ed;
+    border-radius: 10px;
+    margin-bottom: 8px;
+    cursor: pointer;
+    background: #fff;
+    transition: background 0.15s, border-color 0.15s;
+  }
+  .folder-item:hover { background: #f5f8ff; border-color: #b8d0fb; }
+  .folder-item.selected { background: #e8f0fe; border-color: #4a8df0; color: #1a73e8; font-weight: 500; }
+  .folder-thumb {
+    width: 48px;
+    height: 48px;
+    object-fit: cover;
+    border-radius: 6px;
+    background: #f5f5f7;
+    flex-shrink: 0;
+  }
+  .folder-meta { flex: 1; min-width: 0; }
+  .folder-meta .name {
+    font-size: 14px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .folder-meta .count {
+    font-size: 11px;
+    color: #86868b;
+  }
+
+  .preview {
+    flex: 1;
+    min-width: 0;
+    height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #fff;
+    position: relative;
+    padding: 40px;
+    overflow: auto;
+  }
+  .preview-stage {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+  }
+  .preview-stage img {
+    max-width: 70%;
+    max-height: 80%;
+    object-fit: contain;
+  }
+  .preview-empty {
+    color: #c7c7cc;
+    font-size: 15px;
+  }
+
+  .upload-zone {
+    border: 2px dashed #d2d2d7;
+    border-radius: 10px;
+    padding: 32px 16px;
+    text-align: center;
+    cursor: pointer;
+    transition: border-color 0.15s, background 0.15s;
+  }
+  .upload-zone:hover { border-color: #0071e3; background: #f5f8ff; }
+  .upload-zone.dragover { border-color: #0071e3; background: #eaf2ff; }
+  .upload-zone .hint { font-size: 13px; color: #6e6e73; margin-top: 8px; }
+  input[type="file"] { display: none; }
+  .photo-thumb {
+    margin-top: 16px;
+    border: 1px solid #e8e8ed;
+    border-radius: 8px;
+    padding: 8px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    position: relative;
+  }
+  .photo-thumb img {
+    width: 56px;
+    height: 56px;
+    object-fit: cover;
+    border-radius: 6px;
+    background: #f5f5f7;
+  }
+  .photo-thumb .meta { flex: 1; min-width: 0; font-size: 12px; color: #6e6e73; }
+  .photo-thumb .meta .name {
+    font-size: 13px;
+    color: #1d1d1f;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .photo-thumb button {
+    border: none;
+    background: transparent;
+    color: #0071e3;
+    font-size: 13px;
+    cursor: pointer;
+  }
+  .photo-thumb.processing { opacity: 0.85; }
+  .photo-thumb .bg-status {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(255,255,255,0.88);
+    border-radius: 8px;
+    color: #0071e3;
+    font-size: 13px;
+    font-weight: 600;
+    pointer-events: none;
+  }
+
+  .mode-selector {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin: 8px 0 12px;
+    padding: 10px 12px;
+    background: #f5f5f7;
+    border-radius: 8px;
+  }
+  .mode-selector .mode-title {
+    font-size: 12px;
+    color: #6e6e73;
+    font-weight: 500;
+    margin-bottom: 2px;
+  }
+  .mode-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    color: #1d1d1f;
+    cursor: pointer;
+    padding: 4px 0;
+  }
+  .mode-row input[type="radio"] { cursor: pointer; margin: 0; }
+
+  .side-tabs {
+    display: flex;
+    gap: 6px;
+    margin: 0 0 10px;
+  }
+  .side-tabs.hidden { display: none; }
+  .side-tab {
+    flex: 1;
+    border: 1px solid #d2d2d7;
+    background: #fff;
+    color: #6e6e73;
+    padding: 8px 6px;
+    font-size: 13px;
+    font-weight: 600;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s, border-color 0.15s;
+  }
+  .side-tab.active {
+    background: #0071e3;
+    border-color: #0071e3;
+    color: #fff;
+  }
+  .side-tab.has-photo::after {
+    content: ' ✓';
+    color: #34c759;
+  }
+  .side-tab.active.has-photo::after { color: #fff; }
+
+  .stage-canvas {
+    position: relative;
+    display: block;
+    user-select: none;
+  }
+  .stage-canvas .source-img {
+    width: 100%;
+    height: 100%;
+    max-width: 100%;
+    max-height: 100%;
+    display: block;
+    pointer-events: none;
+    -webkit-user-drag: none;
+  }
+  .overlay {
+    position: absolute;
+    cursor: move;
+    user-select: none;
+    border: 1.5px dashed rgba(0, 113, 227, 0.7);
+    box-sizing: border-box;
+    touch-action: none;
+    background-color: transparent;
+    background-repeat: no-repeat;
+    background-position: 0 0;
+    background-size: 100% 100%;
+  }
+  .resize-handle {
+    position: absolute;
+    right: -8px;
+    bottom: -8px;
+    width: 16px;
+    height: 16px;
+    background: #0071e3;
+    border: 2px solid #fff;
+    border-radius: 50%;
+    cursor: nwse-resize;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.25);
+    touch-action: none;
+  }
+  .print-area-guide {
+    position: absolute;
+    pointer-events: none;
+    border: 1.5px dashed rgba(255, 152, 0, 0.85);
+    box-sizing: border-box;
+    z-index: 1;
+  }
+
+  .preview-controls {
+    position: absolute;
+    bottom: 24px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 12px;
+    z-index: 10;
+  }
+  .render-btn {
+    padding: 12px 32px;
+    background: #0071e3;
+    color: #fff;
+    border: none;
+    border-radius: 24px;
+    font-size: 15px;
+    font-weight: 500;
+    cursor: pointer;
+    box-shadow: 0 4px 12px rgba(0, 113, 227, 0.3);
+    transition: background 0.15s, transform 0.1s;
+  }
+  .render-btn:hover  { background: #0058b9; }
+  .render-btn:active { transform: scale(0.97); }
+  .render-btn:disabled { opacity: 0.55; cursor: progress; }
+  .render-btn.render-btn-secondary {
+    background: #fff;
+    color: #1d1d1f;
+    border: 1px solid #d2d2d7;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.06);
+  }
+  .render-btn.render-btn-secondary:hover { background: #f5f5f7; }
+
+  .result-carousel {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .result-carousel img {
+    max-width: 70%;
+    max-height: 80%;
+    object-fit: contain;
+  }
+  .carousel-arrow {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    border: none;
+    background: rgba(0, 0, 0, 0.5);
+    color: #fff;
+    font-size: 22px;
+    line-height: 1;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.15s;
+    z-index: 5;
+  }
+  .carousel-arrow:hover { background: rgba(0, 0, 0, 0.7); }
+  .carousel-arrow.prev { left: 24px; }
+  .carousel-arrow.next { right: 24px; }
+  .carousel-indicator {
+    position: absolute;
+    bottom: 76px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 8px;
+    z-index: 5;
+  }
+  .carousel-dot {
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    background: rgba(0, 0, 0, 0.2);
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+  .carousel-dot.active { background: #0071e3; }
+  .carousel-counter {
+    position: absolute;
+    top: 16px;
+    right: 16px;
+    background: rgba(0, 0, 0, 0.5);
+    color: #fff;
+    font-size: 13px;
+    padding: 4px 10px;
+    border-radius: 12px;
+    z-index: 5;
+  }
+
+  @media (max-width: 768px) {
+    html, body { height: auto; min-height: 100%; }
+    body { background: #fff; overflow-x: hidden; }
+    .app {
+      flex-direction: column;
+      height: auto;
+      min-height: 100svh;
+      overflow: visible;
+    }
+    .sidebar {
+      position: sticky;
+      top: 0;
+      z-index: 20;
+      width: 100%;
+      height: 60px;
+      flex-direction: row;
+      justify-content: center;
+      gap: 8px;
+      padding: 8px 12px;
+      border-right: 0;
+      border-bottom: 1px solid #e8e8ed;
+    }
+    .nav-item {
+      width: min(44vw, 152px);
+      height: 44px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      padding: 0 12px;
+    }
+    .nav-item svg { margin: 0; width: 20px; height: 20px; }
+    .nav-item span { font-size: 13px; font-weight: 600; }
+    .panel {
+      width: 100%;
+      height: auto;
+      max-height: 42svh;
+      padding: 14px 12px;
+      border-right: 0;
+      border-bottom: 1px solid #e8e8ed;
+      background: #fff;
+    }
+    .panel.hidden { display: none !important; }
+    .preview {
+      width: 100%;
+      min-height: calc(100svh - 60px);
+      height: auto;
+      padding: 16px 12px 92px;
+    }
+    .preview-stage img,
+    .result-carousel img {
+      max-width: 100%;
+      max-height: 58svh;
+    }
+    .preview-controls {
+      position: fixed;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      transform: none;
+      justify-content: center;
+      flex-wrap: wrap;
+      gap: 8px;
+      padding: 10px 12px calc(10px + env(safe-area-inset-bottom));
+      background: rgba(255, 255, 255, 0.94);
+      border-top: 1px solid #e8e8ed;
+      backdrop-filter: blur(12px);
+    }
+    .render-btn {
+      flex: 1 1 140px;
+      min-width: 0;
+      max-width: 220px;
+      min-height: 44px;
+      padding: 10px 14px;
+      border-radius: 12px;
+      font-size: 14px;
+    }
+    .carousel-arrow { width: 44px; height: 44px; }
+    .carousel-arrow.prev { left: 8px; }
+    .carousel-arrow.next { right: 8px; }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <aside class="sidebar">
+    <div class="nav-item active" data-tab="products">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
+        <polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline>
+        <line x1="12" y1="22.08" x2="12" y2="12"></line>
+      </svg>
+      <span>產品</span>
+    </div>
+    <div class="nav-item" data-tab="photos">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+        <circle cx="8.5" cy="8.5" r="1.5"></circle>
+        <polyline points="21 15 16 10 5 21"></polyline>
+      </svg>
+      <span>照片</span>
+    </div>
+  </aside>
+
+  <section class="panel" id="panel-products">
+    <div class="panel-title-row">
+      <div class="panel-title">請選擇產品</div>
+      <button class="refresh-btn" id="refreshProducts" type="button">重新整理</button>
+    </div>
+    <div id="folderList">
+      <div style="color:#86868b;font-size:13px;padding:8px 4px;">載入中...</div>
+    </div>
+  </section>
+
+  <section class="panel hidden" id="panel-photos">
+    <div class="panel-title">上傳設計圖</div>
+    <div class="mode-selector">
+      <div class="mode-title">渲染模式</div>
+      <label class="mode-row"><input type="radio" name="renderMode" value="single" checked><span>單面</span></label>
+      <label class="mode-row"><input type="radio" name="renderMode" value="double"><span>雙面（正/背）</span></label>
+    </div>
+    <div class="side-tabs hidden" id="sideTabs">
+      <button type="button" class="side-tab active" data-side="front">正面</button>
+      <button type="button" class="side-tab" data-side="back">背面</button>
+    </div>
+    <label for="fileInput" class="upload-zone" id="dropZone">
+      <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#86868b" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+        <polyline points="17 8 12 3 7 8"></polyline>
+        <line x1="12" y1="3" x2="12" y2="15"></line>
+      </svg>
+      <div style="margin-top:8px; font-size:14px;">點擊或拖曳圖片到此</div>
+      <div class="hint">會自動去背，輸出透明 PNG</div>
+    </label>
+    <input type="file" id="fileInput" accept="image/*">
+    <div id="photoList"></div>
+  </section>
+
+  <main class="preview">
+    <div class="preview-stage" id="stage">
+      <span class="preview-empty">請從左側選擇產品</span>
+    </div>
+    <div class="preview-controls hidden" id="previewControls">
+      <button id="renderBtn" class="render-btn" type="button">開始渲染</button>
+      <button id="downloadBtn" class="render-btn hidden" type="button">下載結果</button>
+      <button id="resetRenderBtn" class="render-btn render-btn-secondary hidden" type="button">重新編輯</button>
+    </div>
+  </main>
+
+</div>
+
+<script>
+  // 同源（從 / 進來）就直接打相對 path；file:// 開啟時 fallback 到固定的 host（dev only）
+  const AI_RENDER_BASE = location.protocol === 'file:' ? 'https://upload.packigo.tw' : '';
+  const SOURCES_ENDPOINT = `${AI_RENDER_BASE}/api/v1/sources`;
+  const RENDER_ENDPOINT = `${AI_RENDER_BASE}/api/v1/render`;
+  const RENDER_JOBS_ENDPOINT = `${AI_RENDER_BASE}/api/v1/render-jobs`;
+  const REMOVE_BG_ENDPOINT = `${AI_RENDER_BASE}/api/v1/remove-background`;
+  const SOURCE_IMAGE_BASE = `${AI_RENDER_BASE}/source`;
+  const REMOVE_BG_TIMEOUT_MS = 60 * 1000;
+
+  let SOURCE_FOLDERS = [];
+  let currentFolderName = null;
+  let renderResults = [];
+  let carouselIndex = 0;
+  let renderStatus = 'idle';
+  let renderError = null;
+  let renderMode = 'single';        // 'single' | 'double'
+  let currentSide = 'front';
+  let sideState = createEmptySideState();
+  let overlayRect = null;
+  let userPhoto = null;
+  let userPhotoFile = null;
+  let currentPrintableArea = null;
+
+  const stage = document.getElementById('stage');
+  const previewControls = document.getElementById('previewControls');
+  const renderBtn = document.getElementById('renderBtn');
+  const downloadBtn = document.getElementById('downloadBtn');
+  const resetRenderBtn = document.getElementById('resetRenderBtn');
+  const folderListEl = document.getElementById('folderList');
+
+  // ===== Sidebar tabs =====
+  const navItems = document.querySelectorAll('.nav-item');
+  const panels = {
+    products: document.getElementById('panel-products'),
+    photos:   document.getElementById('panel-photos'),
+  };
+  navItems.forEach(n => n.addEventListener('click', () => {
+    navItems.forEach(x => x.classList.remove('active'));
+    n.classList.add('active');
+    Object.values(panels).forEach(p => p.classList.add('hidden'));
+    panels[n.dataset.tab].classList.remove('hidden');
+  }));
+
+  // ===== Folder list =====
+  async function loadSourceFolders() {
+    folderListEl.innerHTML = '<div style="color:#86868b;font-size:13px;padding:8px 4px;">載入中...</div>';
+    try {
+      const res = await fetch(SOURCES_ENDPOINT);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      SOURCE_FOLDERS = data.folders || [];
+      renderFolderList();
+    } catch (e) {
+      folderListEl.innerHTML = `<div style="color:#c62828;font-size:13px;padding:8px 4px;">載入失敗：${e.message}</div>`;
+    }
+  }
+
+  function renderFolderList() {
+    if (!SOURCE_FOLDERS.length) {
+      folderListEl.innerHTML = '<div style="color:#86868b;font-size:13px;padding:8px 4px;">後台尚未新增任何產品資料夾</div>';
+      return;
+    }
+    folderListEl.innerHTML = SOURCE_FOLDERS.map(f => `
+      <div class="folder-item" data-folder="${escapeAttr(f.name)}">
+        <img class="folder-thumb" src="${SOURCE_IMAGE_BASE}/${encodeURIComponent(f.name)}/${encodeURIComponent(f.preview)}"
+             onerror="this.style.background='#fbeaea'">
+        <div class="folder-meta">
+          <div class="name">${escapeHtml(f.name)}</div>
+          <div class="count">${f.files.length} 張底圖</div>
+        </div>
+      </div>
+    `).join('');
+    folderListEl.querySelectorAll('.folder-item').forEach(el => {
+      el.addEventListener('click', () => onSelectFolder(el.dataset.folder));
+    });
+  }
+
+  function onSelectFolder(name) {
+    folderListEl.querySelectorAll('.folder-item').forEach(el => el.classList.remove('selected'));
+    folderListEl.querySelector(`.folder-item[data-folder="${cssEscape(name)}"]`)?.classList.add('selected');
+    currentFolderName = name;
+    // 重設位置/結果；保留 user 上傳檔
+    for (const s of Object.values(sideState)) {
+      s.overlayRect = null;
+      s.canvasSize = null;
+      s.natSize = null;
+    }
+    currentSide = 'front';
+    loadActiveSide();
+    currentPrintableArea = getActivePrintableArea();
+    renderResults = [];
+    carouselIndex = 0;
+    renderStatus = 'idle';
+    renderError = null;
+    refreshPhotoListForSide();
+    refreshSideTabs();
+    renderStage();
+  }
+
+  function getMatchedFolder() {
+    return currentFolderName ? SOURCE_FOLDERS.find(f => f.name === currentFolderName) : null;
+  }
+  function getActivePrintableArea() {
+    const m = getMatchedFolder();
+    return m?.printable_area?.[currentSide] || null;
+  }
+  function getMockupUrlForSide(side) {
+    const m = getMatchedFolder();
+    if (!m) return null;
+    const file = (side === 'back' && m.back) ? m.back : (m.front || m.preview);
+    if (!file) return null;
+    return `${SOURCE_IMAGE_BASE}/${encodeURIComponent(m.name)}/${encodeURIComponent(file)}`;
+  }
+  function getActiveMockupUrl() { return getMockupUrlForSide(currentSide); }
+
+  // ===== Side state（雙面用） =====
+  function createEmptySideState() {
+    return {
+      front: { userPhotoFile: null, userPhoto: null, overlayRect: null, canvasSize: null, natSize: null },
+      back:  { userPhotoFile: null, userPhoto: null, overlayRect: null, canvasSize: null, natSize: null },
+    };
+  }
+  function commitActiveSide() {
+    if (!sideState[currentSide]) return;
+    sideState[currentSide].userPhotoFile = userPhotoFile;
+    sideState[currentSide].userPhoto = userPhoto;
+    sideState[currentSide].overlayRect = overlayRect ? { ...overlayRect } : null;
+  }
+  function loadActiveSide() {
+    const s = sideState[currentSide] || {};
+    userPhotoFile = s.userPhotoFile || null;
+    userPhoto = s.userPhoto || null;
+    overlayRect = s.overlayRect ? { ...s.overlayRect } : null;
+    currentPrintableArea = getActivePrintableArea();
+  }
+
+  function refreshPhotoListForSide() {
+    const photoList = document.getElementById('photoList');
+    if (!photoList) return;
+    if (!userPhotoFile) {
+      photoList.innerHTML = '';
+      return;
+    }
+    photoList.innerHTML = `
+      <div class="photo-thumb">
+        <img src="${userPhoto}" alt="">
+        <div class="meta">
+          <div class="name">${escapeHtml(userPhotoFile.name)}</div>
+          <div>${(userPhotoFile.size/1024).toFixed(1)} KB</div>
+        </div>
+        <button id="removePhoto">移除</button>
+      </div>`;
+    document.getElementById('removePhoto').onclick = onRemoveCurrentSidePhoto;
+  }
+
+  function onRemoveCurrentSidePhoto() {
+    userPhoto = null;
+    userPhotoFile = null;
+    overlayRect = null;
+    commitActiveSide();
+    renderResults = [];
+    carouselIndex = 0;
+    renderStatus = 'idle';
+    renderError = null;
+    refreshPhotoListForSide();
+    refreshSideTabs();
+    const fi = document.getElementById('fileInput');
+    if (fi) fi.value = '';
+    renderStage();
+  }
+
+  function refreshSideTabs() {
+    const tabsEl = document.getElementById('sideTabs');
+    if (!tabsEl) return;
+    tabsEl.classList.toggle('hidden', renderMode !== 'double');
+    for (const btn of tabsEl.querySelectorAll('.side-tab')) {
+      const side = btn.dataset.side;
+      btn.classList.toggle('active', side === currentSide);
+      btn.classList.toggle('has-photo', !!sideState[side]?.userPhotoFile);
+    }
+  }
+
+  function setActiveSide(newSide) {
+    if (newSide !== 'front' && newSide !== 'back') return;
+    if (currentSide === newSide) return;
+    commitActiveSide();
+    currentSide = newSide;
+    loadActiveSide();
+    refreshPhotoListForSide();
+    refreshSideTabs();
+    renderStage();
+  }
+
+  function setRenderMode(mode) {
+    if (mode !== 'single' && mode !== 'double') return;
+    if (renderMode === mode) return;
+    renderMode = mode;
+    if (renderMode !== 'double' && currentSide === 'back') {
+      commitActiveSide();
+      currentSide = 'front';
+      loadActiveSide();
+      refreshPhotoListForSide();
+    }
+    renderResults = [];
+    carouselIndex = 0;
+    renderStatus = 'idle';
+    renderError = null;
+    refreshSideTabs();
+    renderStage();
+  }
+
+  // ===== Render stage =====
+  function getPrintBounds(canvas) {
+    const cw = canvas.clientWidth, ch = canvas.clientHeight;
+    if (currentPrintableArea && typeof currentPrintableArea.x_pct === 'number') {
+      return {
+        left:   cw * currentPrintableArea.x_pct,
+        top:    ch * currentPrintableArea.y_pct,
+        width:  cw * currentPrintableArea.w_pct,
+        height: ch * currentPrintableArea.h_pct,
+      };
+    }
+    return { left: 0, top: 0, width: cw, height: ch };
+  }
+
+  function applyOverlayRect(overlay) {
+    if (!overlay || !overlayRect) return;
+    overlay.style.left   = overlayRect.left   + 'px';
+    overlay.style.top    = overlayRect.top    + 'px';
+    overlay.style.width  = overlayRect.width  + 'px';
+    overlay.style.height = overlayRect.height + 'px';
+  }
+
+  function makeDraggable(overlay, handle, canvas) {
+    function onDragStart(e) {
+      if (e.target === handle) return;
+      e.preventDefault();
+      overlay.setPointerCapture?.(e.pointerId);
+      const startX = e.clientX, startY = e.clientY;
+      const start = { ...overlayRect };
+      function move(ev) {
+        const pb = getPrintBounds(canvas);
+        const nl = Math.max(pb.left, Math.min(pb.left + pb.width  - start.width,  start.left + (ev.clientX - startX)));
+        const nt = Math.max(pb.top,  Math.min(pb.top  + pb.height - start.height, start.top  + (ev.clientY - startY)));
+        overlayRect = { ...start, left: nl, top: nt };
+        applyOverlayRect(overlay);
+      }
+      function up() {
+        overlay.removeEventListener('pointermove', move);
+        overlay.removeEventListener('pointerup', up);
+        overlay.removeEventListener('pointercancel', up);
+      }
+      overlay.addEventListener('pointermove', move);
+      overlay.addEventListener('pointerup', up);
+      overlay.addEventListener('pointercancel', up);
+    }
+    function onResizeStart(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      handle.setPointerCapture?.(e.pointerId);
+      const startX = e.clientX, startY = e.clientY;
+      const start = { ...overlayRect };
+      const aspect = start.height / start.width;
+      function move(ev) {
+        const delta = ((ev.clientX - startX) + (ev.clientY - startY)) / 2;
+        let nw = Math.max(40, start.width + delta);
+        let nh = nw * aspect;
+        const pb = getPrintBounds(canvas);
+        const maxW = pb.left + pb.width  - start.left;
+        const maxH = pb.top  + pb.height - start.top;
+        if (nw > maxW) { nw = maxW; nh = nw * aspect; }
+        if (nh > maxH) { nh = maxH; nw = nh / aspect; }
+        overlayRect = { ...start, width: nw, height: nh };
+        applyOverlayRect(overlay);
+      }
+      function up() {
+        handle.removeEventListener('pointermove', move);
+        handle.removeEventListener('pointerup', up);
+        handle.removeEventListener('pointercancel', up);
+      }
+      handle.addEventListener('pointermove', move);
+      handle.addEventListener('pointerup', up);
+      handle.addEventListener('pointercancel', up);
+    }
+    overlay.addEventListener('pointerdown', onDragStart);
+    handle.addEventListener('pointerdown', onResizeStart);
+  }
+
+  function updatePreviewControls() {
+    const isEditing  = !!(currentFolderName && userPhotoFile && renderResults.length === 0 && renderStatus === 'idle');
+    const isFinished = renderResults.length > 0 || renderStatus === 'error';
+    renderBtn.classList.toggle('hidden', !isEditing);
+    downloadBtn.classList.toggle('hidden', renderResults.length === 0);
+    resetRenderBtn.classList.toggle('hidden', !isFinished);
+    previewControls.classList.toggle('hidden', !isEditing && !isFinished);
+  }
+
+  function renderResultCarousel() {
+    const wrapper = document.createElement('div');
+    wrapper.className = 'result-carousel';
+    const cur = renderResults[carouselIndex] || renderResults[0];
+    const img = document.createElement('img');
+    img.src = `data:image/png;base64,${cur.result_base64}`;
+    img.alt = cur.source_filename || '';
+    wrapper.appendChild(img);
+
+    if (renderResults.length > 1) {
+      const counter = document.createElement('div');
+      counter.className = 'carousel-counter';
+      const sideLabel = cur.side === 'back' ? '背面' : (cur.side === 'front' ? '正面' : '');
+      counter.textContent = sideLabel
+        ? `${sideLabel} (${carouselIndex + 1}/${renderResults.length})`
+        : `${carouselIndex + 1} / ${renderResults.length}`;
+      wrapper.appendChild(counter);
+
+      const prev = document.createElement('button');
+      prev.className = 'carousel-arrow prev';
+      prev.type = 'button';
+      prev.textContent = '‹';
+      prev.addEventListener('click', () => {
+        carouselIndex = (carouselIndex - 1 + renderResults.length) % renderResults.length;
+        renderStage();
+      });
+      wrapper.appendChild(prev);
+
+      const next = document.createElement('button');
+      next.className = 'carousel-arrow next';
+      next.type = 'button';
+      next.textContent = '›';
+      next.addEventListener('click', () => {
+        carouselIndex = (carouselIndex + 1) % renderResults.length;
+        renderStage();
+      });
+      wrapper.appendChild(next);
+
+      const indicator = document.createElement('div');
+      indicator.className = 'carousel-indicator';
+      renderResults.forEach((_, i) => {
+        const dot = document.createElement('div');
+        dot.className = 'carousel-dot' + (i === carouselIndex ? ' active' : '');
+        dot.addEventListener('click', () => { carouselIndex = i; renderStage(); });
+        indicator.appendChild(dot);
+      });
+      wrapper.appendChild(indicator);
+    }
+    return wrapper;
+  }
+
+  function renderStage() {
+    stage.innerHTML = '';
+    if (renderStatus === 'loading') {
+      stage.innerHTML = '<span class="preview-empty">⏳ AI 合成中，約 15–30 秒...</span>';
+      updatePreviewControls();
+      return;
+    }
+    if (renderStatus === 'error') {
+      stage.innerHTML = `<span class="preview-empty" style="color:#c62828; max-width:80%; text-align:center; line-height:1.5;">${escapeHtml(renderError || '合成失敗')}</span>`;
+      updatePreviewControls();
+      return;
+    }
+    if (renderResults.length > 0) {
+      stage.appendChild(renderResultCarousel());
+      updatePreviewControls();
+      return;
+    }
+    if (!currentFolderName) {
+      stage.innerHTML = '<span class="preview-empty">請從左側選擇產品</span>';
+      updatePreviewControls();
+      return;
+    }
+    const mockupUrl = getActiveMockupUrl();
+    if (!mockupUrl) {
+      stage.innerHTML = '<span class="preview-empty">此資料夾尚無底圖</span>';
+      updatePreviewControls();
+      return;
+    }
+
+    const canvas = document.createElement('div');
+    canvas.className = 'stage-canvas';
+    const sourceImg = document.createElement('img');
+    sourceImg.className = 'source-img';
+    sourceImg.draggable = false;
+    sourceImg.crossOrigin = 'anonymous';
+    sourceImg.src = mockupUrl;
+    canvas.appendChild(sourceImg);
+
+    let printGuide = null;
+    if (currentPrintableArea) {
+      printGuide = document.createElement('div');
+      printGuide.className = 'print-area-guide';
+      canvas.appendChild(printGuide);
+    }
+
+    let overlay = null;
+    if (userPhoto) {
+      overlay = document.createElement('div');
+      overlay.className = 'overlay';
+      overlay.style.backgroundImage = `url("${userPhoto}")`;
+      const handle = document.createElement('div');
+      handle.className = 'resize-handle';
+      overlay.appendChild(handle);
+      canvas.appendChild(overlay);
+      makeDraggable(overlay, handle, canvas);
+    }
+
+    stage.appendChild(canvas);
+
+    const fitCanvas = () => {
+      const stageBounds = stage.getBoundingClientRect();
+      const isMobile = window.matchMedia('(max-width: 768px)').matches;
+      const maxW = stageBounds.width  * (isMobile ? 0.96 : 0.75);
+      const maxH = stageBounds.height * (isMobile ? 0.78 : 0.85);
+      const natW = sourceImg.naturalWidth  || 400;
+      const natH = sourceImg.naturalHeight || 400;
+      const ratio = Math.min(maxW / natW, maxH / natH, 1);
+      const cw = natW * ratio;
+      const ch = natH * ratio;
+      const prevCanvasSize = sideState[currentSide].canvasSize;
+      canvas.style.width  = cw + 'px';
+      canvas.style.height = ch + 'px';
+      sideState[currentSide].canvasSize = { width: cw, height: ch };
+      sideState[currentSide].natSize    = { width: natW, height: natH };
+      if (overlayRect && prevCanvasSize?.width && prevCanvasSize?.height &&
+          (Math.abs(prevCanvasSize.width - cw) > 0.5 || Math.abs(prevCanvasSize.height - ch) > 0.5)) {
+        overlayRect = {
+          left: overlayRect.left * (cw / prevCanvasSize.width),
+          top: overlayRect.top * (ch / prevCanvasSize.height),
+          width: overlayRect.width * (cw / prevCanvasSize.width),
+          height: overlayRect.height * (ch / prevCanvasSize.height),
+        };
+      }
+      if (printGuide) {
+        const pb = getPrintBounds(canvas);
+        printGuide.style.left   = pb.left   + 'px';
+        printGuide.style.top    = pb.top    + 'px';
+        printGuide.style.width  = pb.width  + 'px';
+        printGuide.style.height = pb.height + 'px';
+      }
+      if (!overlay) return;
+      if (!overlayRect) {
+        createImageBitmap(userPhotoFile).then(bm => {
+          const bmW = bm.width, bmH = bm.height;
+          bm.close?.();
+          const aspect = bmH / bmW;
+          const pb = getPrintBounds(canvas);
+          let w = pb.width * 0.5;
+          let h = w * aspect;
+          if (h > pb.height) { h = pb.height; w = h / aspect; }
+          overlayRect = {
+            left: pb.left + (pb.width  - w) / 2,
+            top:  pb.top  + (pb.height - h) / 2,
+            width: w,
+            height: h,
+          };
+          applyOverlayRect(overlay);
+        }).catch(() => {
+          const pb = getPrintBounds(canvas);
+          const w = pb.width * 0.5;
+          const h = Math.min(w, pb.height);
+          overlayRect = { left: pb.left + (pb.width-w)/2, top: pb.top + (pb.height-h)/2, width: w, height: h };
+          applyOverlayRect(overlay);
+        });
+      } else {
+        const pb = getPrintBounds(canvas);
+        overlayRect.width  = Math.min(overlayRect.width,  pb.width);
+        overlayRect.height = Math.min(overlayRect.height, pb.height);
+        overlayRect.left   = Math.max(pb.left, Math.min(pb.left + pb.width  - overlayRect.width,  overlayRect.left));
+        overlayRect.top    = Math.max(pb.top,  Math.min(pb.top  + pb.height - overlayRect.height, overlayRect.top));
+        applyOverlayRect(overlay);
+      }
+    };
+
+    if (sourceImg.complete && sourceImg.naturalWidth) {
+      fitCanvas();
+    } else {
+      sourceImg.addEventListener('load',  fitCanvas, { once: true });
+      sourceImg.addEventListener('error', fitCanvas, { once: true });
+    }
+
+    updatePreviewControls();
+  }
+
+  // ===== Composite + render =====
+  async function composeOffscreen({ mockupUrl, userFile, rect, dispW, dispH }) {
+    if (!mockupUrl || !userFile || !rect || !dispW || !dispH) {
+      throw new Error('compose: 缺少必要參數');
+    }
+    const mockupImg = await new Promise((resolve, reject) => {
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.onload  = () => resolve(img);
+      img.onerror = () => reject(new Error('底圖載入失敗'));
+      img.src = mockupUrl;
+    });
+    const natW = mockupImg.naturalWidth;
+    const natH = mockupImg.naturalHeight;
+    if (!natW || !natH) throw new Error('底圖尺寸異常');
+
+    let userBitmap;
+    try { userBitmap = await createImageBitmap(userFile); }
+    catch (e) { throw new Error('讀取設計圖失敗: ' + e.message); }
+
+    const sx = natW / dispW;
+    const sy = natH / dispH;
+
+    const out = document.createElement('canvas');
+    out.width  = natW;
+    out.height = natH;
+    const ctx = out.getContext('2d');
+    ctx.drawImage(mockupImg, 0, 0, natW, natH);
+    ctx.drawImage(
+      userBitmap,
+      rect.left * sx, rect.top * sy,
+      rect.width * sx, rect.height * sy,
+    );
+    userBitmap.close?.();
+    return out.toDataURL('image/png').split(',')[1];
+  }
+
+  const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+
+  async function renderViaJob(payload, sideLabel) {
+    const createRes = await fetch(RENDER_JOBS_ENDPOINT, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    if (!createRes.ok) {
+      let detail = `HTTP ${createRes.status}`;
+      try { const j = await createRes.json(); detail += ' — ' + (j.detail || JSON.stringify(j)); } catch {}
+      throw new Error(detail);
+    }
+    const created = await createRes.json();
+    const jobId = created.job_id;
+    if (!jobId) throw new Error('後端沒有回傳 job_id');
+
+    const startedAt = Date.now();
+    const timeoutMs = 5 * 60 * 1000;
+    while (Date.now() - startedAt < timeoutMs) {
+      await sleep(2000);
+      const statusRes = await fetch(`${RENDER_JOBS_ENDPOINT}/${encodeURIComponent(jobId)}`);
+      if (!statusRes.ok) {
+        let detail = `HTTP ${statusRes.status}`;
+        try { const j = await statusRes.json(); detail += ' — ' + (j.detail || JSON.stringify(j)); } catch {}
+        throw new Error(detail);
+      }
+      const job = await statusRes.json();
+      if (job.status === 'succeeded') {
+        const ok = (job.results || []).filter(r => r.result_base64);
+        if (!ok.length) throw new Error(`${sideLabel}：沒有成功的渲染結果`);
+        return ok[0];
+      }
+      if (job.status === 'failed') {
+        throw new Error(job.error || '渲染任務失敗');
+      }
+    }
+    throw new Error('渲染逾時，請稍後再試');
+  }
+
+  async function tryRender() {
+    if (!currentFolderName || !userPhotoFile) return;
+    commitActiveSide();
+
+    if (renderMode === 'double') {
+      if (!sideState.front.userPhotoFile || !sideState.back.userPhotoFile) {
+        renderError = '請在正面與背面都上傳設計圖';
+        renderStatus = 'error';
+        renderStage();
+        return;
+      }
+    }
+    const sides = (renderMode === 'double') ? ['front', 'back'] : [currentSide];
+
+    renderStatus = 'loading';
+    renderError = null;
+    renderResults = [];
+    carouselIndex = 0;
+    renderStage();
+
+    const tasks = sides.map(side => async () => {
+      const s = sideState[side];
+      if (!s.userPhotoFile || !s.overlayRect || !s.canvasSize) {
+        throw new Error(`${side === 'front' ? '正面' : '背面'} 資料不完整`);
+      }
+      const mockupUrl = getMockupUrlForSide(side);
+      if (!mockupUrl) throw new Error(`${side === 'back' ? '背面' : '正面'} 底圖找不到`);
+
+      const compositeB64 = await composeOffscreen({
+        mockupUrl,
+        userFile: s.userPhotoFile,
+        rect: s.overlayRect,
+        dispW: s.canvasSize.width,
+        dispH: s.canvasSize.height,
+      });
+      let userB64 = null;
+      try { userB64 = await fileToBase64(s.userPhotoFile); } catch (_) {}
+
+      const result = await renderViaJob({
+        source_folder: currentFolderName,
+        image_base64: compositeB64,
+        is_composite: true,
+        user_image_base64: userB64,
+      }, side === 'back' ? '背面' : '正面');
+      return { side, result };
+    });
+
+    try {
+      const results = await Promise.all(tasks.map(t => t()));
+      renderResults = results.map(({ side, result }) => ({ ...result, side }));
+      carouselIndex = 0;
+      renderStatus = 'idle';
+    } catch (err) {
+      renderError = `合成失敗：${err.message}`;
+      renderStatus = 'error';
+    }
+    renderStage();
+  }
+
+  // ===== Background removal =====
+  function fileToBase64(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result.split(',')[1]);
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  }
+
+  function setBgStatus(text) {
+    const el = document.getElementById('photoList')?.querySelector('.bg-status');
+    if (el) el.textContent = text;
+  }
+
+  async function removeBackgroundViaBackend(file) {
+    const b64 = await fileToBase64(file);
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), REMOVE_BG_TIMEOUT_MS);
+    try {
+      const res = await fetch(REMOVE_BG_ENDPOINT, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ image_base64: b64 }),
+        signal: ctrl.signal,
+      });
+      if (!res.ok) {
+        let detail = `HTTP ${res.status}`;
+        try { const j = await res.json(); detail += ' — ' + (j.detail || JSON.stringify(j)); } catch {}
+        throw new Error(detail);
+      }
+      const { image_base64 } = await res.json();
+      if (!image_base64) throw new Error('後端沒有回 image_base64');
+      const bin = Uint8Array.from(atob(image_base64), c => c.charCodeAt(0));
+      return new Blob([bin], { type: 'image/png' });
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
+  // 後端 timeout 時直接 fallback 為原圖（不靠瀏覽器 WASM 模型，避免下載 ~20MB）。
+  async function removeImageBackground(file) {
+    try {
+      setBgStatus('去背中…');
+      return await removeBackgroundViaBackend(file);
+    } catch (e) {
+      console.warn('[bg-removal] 後端去背失敗，使用原圖:', e);
+      setBgStatus('去背失敗，使用原圖');
+      return null;
+    }
+  }
+
+  // 自動裁透明邊 + 近白邊（去背後通常會留大片透明）
+  async function trimTransparentEdges(file) {
+    let bitmap;
+    try { bitmap = await createImageBitmap(file); } catch (_) { return file; }
+    const w = bitmap.width, h = bitmap.height;
+    if (!w || !h) { bitmap.close?.(); return file; }
+    const c = document.createElement('canvas');
+    c.width = w; c.height = h;
+    const ctx = c.getContext('2d');
+    ctx.drawImage(bitmap, 0, 0);
+    bitmap.close?.();
+    let data;
+    try { data = ctx.getImageData(0, 0, w, h).data; } catch (_) { return file; }
+    const ALPHA_TH = 16, WHITE_TH = 245;
+    const isDesignPixel = (off) => {
+      const a = data[off + 3];
+      if (a <= ALPHA_TH) return false;
+      const r = data[off], g = data[off+1], b = data[off+2];
+      if (r >= WHITE_TH && g >= WHITE_TH && b >= WHITE_TH) return false;
+      return true;
+    };
+    let minX = w, minY = h, maxX = -1, maxY = -1;
+    for (let y = 0; y < h; y++) {
+      for (let x = 0; x < w; x++) {
+        if (isDesignPixel((y * w + x) * 4)) {
+          if (x < minX) minX = x;
+          if (x > maxX) maxX = x;
+          if (y < minY) minY = y;
+          if (y > maxY) maxY = y;
+        }
+      }
+    }
+    if (maxX < 0) return file;
+    const cw = maxX - minX + 1, ch = maxY - minY + 1;
+    const margin = (w - cw) + (h - ch);
+    if (margin < (w + h) * 0.02) return file;
+    const out = document.createElement('canvas');
+    out.width = cw; out.height = ch;
+    out.getContext('2d').drawImage(c, minX, minY, cw, ch, 0, 0, cw, ch);
+    return await new Promise((resolve) => {
+      out.toBlob((blob) => {
+        if (!blob) return resolve(file);
+        const baseName = file.name.replace(/\.[^.]+$/, '');
+        resolve(new File([blob], baseName + '.png', { type: 'image/png' }));
+      }, 'image/png');
+    });
+  }
+
+  // ===== Upload =====
+  const fileInput = document.getElementById('fileInput');
+  const dropZone  = document.getElementById('dropZone');
+  const photoList = document.getElementById('photoList');
+  let uploadSerial = 0;
+
+  async function handleFile(file) {
+    if (!file || !file.type.startsWith('image/')) return;
+    const thisUpload = ++uploadSerial;
+
+    const previewUrl = URL.createObjectURL(file);
+    photoList.innerHTML = `
+      <div class="photo-thumb processing">
+        <img src="${previewUrl}" alt="">
+        <div class="meta"><div class="name">${escapeHtml(file.name)}</div><div>處理中…</div></div>
+        <div class="bg-status">準備去背…</div>
+      </div>`;
+    fileInput.disabled = true;
+
+    try {
+      const blob = await removeImageBackground(file);
+      if (thisUpload !== uploadSerial) return;
+      if (blob) {
+        const stem = file.name.replace(/\.[^.]+$/, '');
+        file = new File([blob], `${stem}-bg.png`, { type: 'image/png' });
+      }
+
+      setBgStatus('裁切邊緣…');
+      try { file = await trimTransparentEdges(file); } catch (_) {}
+      if (thisUpload !== uploadSerial) return;
+
+      userPhotoFile = file;
+      userPhoto = URL.createObjectURL(file);
+      overlayRect = null;
+      renderResults = [];
+      carouselIndex = 0;
+      renderStatus = 'idle';
+      renderError = null;
+      refreshPhotoListForSide();
+      commitActiveSide();
+      refreshSideTabs();
+      renderStage();
+    } finally {
+      fileInput.disabled = false;
+      URL.revokeObjectURL(previewUrl);
+    }
+  }
+
+  fileInput.addEventListener('change', e => handleFile(e.target.files[0]));
+  ['dragenter','dragover'].forEach(ev =>
+    dropZone.addEventListener(ev, e => { e.preventDefault(); dropZone.classList.add('dragover'); }));
+  ['dragleave','drop'].forEach(ev =>
+    dropZone.addEventListener(ev, e => { e.preventDefault(); dropZone.classList.remove('dragover'); }));
+  dropZone.addEventListener('drop', e => handleFile(e.dataTransfer.files[0]));
+
+  document.querySelectorAll('input[name="renderMode"]').forEach(r => {
+    r.addEventListener('change', e => { if (e.target.checked) setRenderMode(e.target.value); });
+  });
+  document.querySelectorAll('#sideTabs .side-tab').forEach(btn => {
+    btn.addEventListener('click', () => setActiveSide(btn.dataset.side));
+  });
+
+  // ===== Buttons =====
+  renderBtn.addEventListener('click', () => {
+    if (!currentFolderName || !userPhotoFile) return;
+    tryRender();
+  });
+  resetRenderBtn.addEventListener('click', () => {
+    renderResults = [];
+    carouselIndex = 0;
+    renderStatus = 'idle';
+    renderError = null;
+    renderStage();
+  });
+  downloadBtn.addEventListener('click', () => {
+    const cur = renderResults[carouselIndex];
+    if (!cur?.result_base64) return;
+    const a = document.createElement('a');
+    a.href = `data:image/png;base64,${cur.result_base64}`;
+    const sideTag = cur.side === 'back' ? '-back' : (cur.side === 'front' ? '-front' : '');
+    a.download = `${currentFolderName || 'render'}${sideTag}.png`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  });
+
+  document.getElementById('refreshProducts').addEventListener('click', loadSourceFolders);
+
+  let resizeTimer = null;
+  window.addEventListener('resize', () => {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(() => {
+      commitActiveSide();
+      renderStage();
+    }, 120);
+  });
+
+  // ===== Util =====
+  function escapeHtml(s) {
+    return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  }
+  function escapeAttr(s) { return escapeHtml(s); }
+  function cssEscape(s) {
+    return (typeof CSS !== 'undefined' && CSS.escape) ? CSS.escape(s) : String(s).replace(/[^\w-]/g, '\\$&');
+  }
+
+  loadSourceFolders();
+</script>
+</body>
+</html>

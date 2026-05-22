@@ -1,0 +1,42 @@
+services:
+  api:
+    build: .
+    container_name: ai-render
+    restart: unless-stopped
+    env_file:
+      - .env
+    volumes:
+      - ./storage:/app/storage
+      - ./admin.html:/app/admin.html:ro
+      - ./customize.html:/app/customize.html:ro
+    # Reach host's openclaw-bridge (systemd service on docker bridge IP) via host.docker.internal
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      - traefik-net
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=traefik-net"
+
+      # HTTPS router
+      - "traefik.http.routers.airender.rule=Host(`upload.packigo.tw`)"
+      - "traefik.http.routers.airender.entrypoints=websecure"
+      - "traefik.http.routers.airender.tls=true"
+      - "traefik.http.routers.airender.tls.certresolver=myresolver"
+      - "traefik.http.services.airender.loadbalancer.server.port=8000"
+
+      # HTTP -> HTTPS redirect
+      - "traefik.http.routers.airender-http.rule=Host(`upload.packigo.tw`)"
+      - "traefik.http.routers.airender-http.entrypoints=web"
+      - "traefik.http.routers.airender-http.middlewares=airender-redirect"
+      - "traefik.http.middlewares.airender-redirect.redirectscheme.scheme=https"
+      - "traefik.http.middlewares.airender-redirect.redirectscheme.permanent=true"
+
+      # Rate limit (30 req/sec average, burst 10)
+      - "traefik.http.middlewares.airender-ratelimit.ratelimit.average=30"
+      - "traefik.http.middlewares.airender-ratelimit.ratelimit.burst=10"
+      - "traefik.http.routers.airender.middlewares=airender-ratelimit"
+
+networks:
+  traefik-net:
+    external: true

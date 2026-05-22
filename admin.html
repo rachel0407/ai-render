@@ -1,0 +1,923 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ai-render 後台</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue",
+                 "PingFang TC", "Microsoft JhengHei", sans-serif;
+    background: #f5f5f7;
+    color: #1d1d1f;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* ========== Login ========== */
+  .login-page {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  }
+  .login-card {
+    background: #fff;
+    padding: 48px 40px;
+    border-radius: 18px;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.15);
+    width: 360px;
+    max-width: 90vw;
+  }
+  .login-card h1 {
+    font-size: 22px;
+    font-weight: 600;
+    text-align: center;
+    margin-bottom: 8px;
+  }
+  .login-card .subtitle {
+    text-align: center;
+    color: #86868b;
+    font-size: 13px;
+    margin-bottom: 32px;
+  }
+  .login-card input {
+    width: 100%;
+    padding: 12px 14px;
+    border: 1px solid #d2d2d7;
+    border-radius: 10px;
+    font-size: 15px;
+    outline: none;
+    transition: border-color 0.15s;
+  }
+  .login-card input:focus { border-color: #007aff; }
+  .login-card button {
+    width: 100%;
+    margin-top: 16px;
+    padding: 12px;
+    background: #1d1d1f;
+    color: #fff;
+    border: none;
+    border-radius: 10px;
+    font-size: 15px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: opacity 0.15s;
+  }
+  .login-card button:hover { opacity: 0.85; }
+  .login-error {
+    color: #ff3b30;
+    font-size: 13px;
+    text-align: center;
+    margin-top: 12px;
+    min-height: 18px;
+  }
+
+  /* ========== Admin ========== */
+  .admin-page { display: none; }
+  .admin-page.active { display: block; }
+
+  header {
+    background: #fff;
+    border-bottom: 1px solid #e5e5ea;
+    padding: 16px 32px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+  }
+  header h1 {
+    font-size: 18px;
+    font-weight: 600;
+  }
+  .tabs {
+    display: flex;
+    gap: 4px;
+  }
+  .tab-btn {
+    padding: 8px 18px;
+    border: 1px solid #d2d2d7;
+    background: #fff;
+    border-radius: 8px;
+    font-size: 13px;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s, border-color 0.15s;
+  }
+  .tab-btn:hover { background: #f5f5f7; }
+  .tab-btn.active {
+    background: #1d1d1f;
+    color: #fff;
+    border-color: #1d1d1f;
+  }
+  .toolbar {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+  }
+  .toolbar input,
+  .toolbar select {
+    padding: 7px 12px;
+    border: 1px solid #d2d2d7;
+    border-radius: 8px;
+    font-size: 13px;
+    background: #fff;
+    outline: none;
+  }
+  .toolbar input { width: 220px; }
+  .toolbar input:focus { border-color: #007aff; }
+  .toolbar button {
+    padding: 7px 14px;
+    border: 1px solid #d2d2d7;
+    background: #fff;
+    border-radius: 8px;
+    font-size: 13px;
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+  .toolbar button:hover { background: #f5f5f7; }
+  .toolbar button.primary {
+    background: #007aff;
+    color: #fff;
+    border-color: #007aff;
+  }
+  .toolbar button.primary:hover { background: #0066d4; }
+  .toolbar button.danger {
+    background: #ff3b30;
+    color: #fff;
+    border-color: #ff3b30;
+  }
+  .toolbar button.danger:hover { background: #d93025; }
+
+  main {
+    padding: 24px 32px;
+    max-width: 1400px;
+    margin: 0 auto;
+  }
+
+  .tab-panel { display: none; }
+  .tab-panel.active { display: block; }
+
+  .stats {
+    display: flex;
+    gap: 16px;
+    margin-bottom: 20px;
+  }
+  .stat-card {
+    flex: 1;
+    background: #fff;
+    padding: 16px 20px;
+    border-radius: 12px;
+    border: 1px solid #e5e5ea;
+  }
+  .stat-card .label {
+    font-size: 12px;
+    color: #86868b;
+    margin-bottom: 4px;
+  }
+  .stat-card .value {
+    font-size: 24px;
+    font-weight: 600;
+  }
+
+  /* History */
+  .history-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    gap: 16px;
+  }
+  .history-card {
+    background: #fff;
+    border: 1px solid #e5e5ea;
+    border-radius: 12px;
+    overflow: hidden;
+  }
+  .history-card-head {
+    padding: 12px 16px;
+    border-bottom: 1px solid #f0f0f2;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .history-card-head .ts {
+    font-size: 13px;
+    color: #1d1d1f;
+    font-weight: 500;
+  }
+  .history-card-head .folder {
+    font-size: 11px;
+    padding: 2px 8px;
+    background: #f0f0f2;
+    border-radius: 4px;
+    color: #6e6e73;
+  }
+  .history-imgs {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1px;
+    background: #f0f0f2;
+  }
+  .history-img-cell {
+    background: #fff;
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+  }
+  .history-img-cell img {
+    width: 100%;
+    height: 180px;
+    object-fit: contain;
+    background: #f5f5f7;
+    border-radius: 6px;
+    cursor: zoom-in;
+  }
+  .history-img-cell .label {
+    font-size: 11px;
+    color: #6e6e73;
+  }
+  .history-img-cell .download {
+    font-size: 11px;
+    color: #007aff;
+    text-decoration: none;
+  }
+
+  /* Folders */
+  .folder-card {
+    background: #fff;
+    border: 1px solid #e5e5ea;
+    border-radius: 12px;
+    margin-bottom: 16px;
+    overflow: hidden;
+  }
+  .folder-card-head {
+    padding: 14px 18px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid #f0f0f2;
+    background: #fafafa;
+  }
+  .folder-card-head .name {
+    font-size: 16px;
+    font-weight: 600;
+  }
+  .folder-card-head .count {
+    font-size: 12px;
+    color: #86868b;
+    margin-left: 8px;
+  }
+  .folder-card-head .actions {
+    display: flex;
+    gap: 8px;
+  }
+  .folder-card-head .actions button {
+    padding: 6px 12px;
+    border: 1px solid #d2d2d7;
+    background: #fff;
+    border-radius: 6px;
+    font-size: 12px;
+    cursor: pointer;
+  }
+  .folder-card-head .actions button:hover { background: #f5f5f7; }
+  .folder-card-head .actions button.primary {
+    background: #007aff;
+    color: #fff;
+    border-color: #007aff;
+  }
+  .folder-card-head .actions button.primary:hover { background: #0066d4; }
+  .folder-card-head .actions button.danger {
+    color: #ff3b30;
+    border-color: #ffd6d3;
+  }
+  .folder-card-head .actions button.danger:hover {
+    background: #ffeceb;
+  }
+  .folder-images {
+    padding: 16px;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    gap: 12px;
+  }
+  .folder-image-tile {
+    border: 1px solid #e5e5ea;
+    border-radius: 8px;
+    overflow: hidden;
+    background: #fff;
+    position: relative;
+  }
+  .folder-image-tile img {
+    width: 100%;
+    height: 130px;
+    object-fit: contain;
+    background: #f5f5f7;
+    display: block;
+    cursor: zoom-in;
+  }
+  .folder-image-tile .meta {
+    padding: 6px 10px;
+    font-size: 11px;
+    color: #6e6e73;
+    border-top: 1px solid #e5e5ea;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 4px;
+  }
+  .folder-image-tile .meta .name {
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    flex: 1;
+  }
+  .folder-image-tile .meta button {
+    border: none;
+    background: transparent;
+    color: #ff3b30;
+    font-size: 11px;
+    cursor: pointer;
+    padding: 0;
+  }
+  .folder-empty-msg {
+    padding: 24px;
+    text-align: center;
+    color: #86868b;
+    font-size: 13px;
+  }
+
+  .empty {
+    padding: 60px 20px;
+    text-align: center;
+    color: #86868b;
+  }
+  .loading {
+    padding: 60px 20px;
+    text-align: center;
+    color: #86868b;
+  }
+  .error-box {
+    padding: 20px;
+    background: #ffeceb;
+    color: #a02a20;
+    border-radius: 10px;
+    margin-bottom: 16px;
+  }
+
+  /* Pagination */
+  .pager {
+    display: flex;
+    justify-content: center;
+    gap: 8px;
+    margin-top: 20px;
+  }
+  .pager button {
+    padding: 6px 14px;
+    border: 1px solid #d2d2d7;
+    background: #fff;
+    border-radius: 6px;
+    font-size: 13px;
+    cursor: pointer;
+  }
+  .pager button:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+  .pager .pageinfo {
+    padding: 6px 8px;
+    font-size: 13px;
+    color: #6e6e73;
+  }
+
+  /* Lightbox */
+  .lightbox {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.85);
+    z-index: 100;
+    align-items: center;
+    justify-content: center;
+    padding: 40px;
+    cursor: zoom-out;
+  }
+  .lightbox.active { display: flex; }
+  .lightbox img {
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+  }
+
+  /* Modal */
+  .modal {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.45);
+    z-index: 200;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+  }
+  .modal.active { display: flex; }
+  .modal-content {
+    background: #fff;
+    padding: 24px;
+    border-radius: 12px;
+    width: 360px;
+    max-width: 90vw;
+  }
+  .modal-content h2 {
+    font-size: 16px;
+    font-weight: 600;
+    margin-bottom: 14px;
+  }
+  .modal-content input {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid #d2d2d7;
+    border-radius: 8px;
+    font-size: 14px;
+    outline: none;
+  }
+  .modal-content input:focus { border-color: #007aff; }
+  .modal-hint {
+    font-size: 12px;
+    color: #86868b;
+    margin-top: 6px;
+  }
+  .modal-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 18px;
+    justify-content: flex-end;
+  }
+  .modal-actions button {
+    padding: 8px 16px;
+    border: 1px solid #d2d2d7;
+    background: #fff;
+    border-radius: 8px;
+    font-size: 13px;
+    cursor: pointer;
+  }
+  .modal-actions button.primary {
+    background: #007aff;
+    color: #fff;
+    border-color: #007aff;
+  }
+</style>
+</head>
+<body>
+
+<!-- ============ Login Screen ============ -->
+<div id="loginPage" class="login-page">
+  <form class="login-card" id="loginForm">
+    <h1>ai-render 後台</h1>
+    <div class="subtitle">渲染紀錄與底圖管理</div>
+    <input type="password" id="passwordInput" placeholder="密碼" autocomplete="current-password" autofocus>
+    <button type="submit">登入</button>
+    <div class="login-error" id="loginError"></div>
+  </form>
+</div>
+
+<!-- ============ Admin Screen ============ -->
+<div id="adminPage" class="admin-page">
+  <header>
+    <h1>ai-render 後台</h1>
+    <div class="tabs">
+      <button class="tab-btn active" data-tab="history">歷史紀錄</button>
+      <button class="tab-btn" data-tab="folders">資料夾管理</button>
+    </div>
+    <div class="toolbar">
+      <button id="refreshBtn" class="primary">重新整理</button>
+      <button id="logoutBtn">登出</button>
+    </div>
+  </header>
+
+  <main>
+    <!-- 歷史紀錄 -->
+    <div class="tab-panel active" id="panel-history">
+      <div class="stats" id="historyStats"></div>
+      <div id="historyContent">
+        <div class="loading">載入中...</div>
+      </div>
+      <div class="pager" id="historyPager"></div>
+    </div>
+
+    <!-- 資料夾管理 -->
+    <div class="tab-panel" id="panel-folders">
+      <div class="toolbar" style="margin-bottom:16px">
+        <button id="createFolderBtn" class="primary">+ 新增資料夾</button>
+      </div>
+      <div id="foldersContent">
+        <div class="loading">載入中...</div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<!-- Lightbox -->
+<div class="lightbox" id="lightbox" onclick="closeLightbox()">
+  <img id="lightboxImg" src="" alt="">
+</div>
+
+<!-- Create Folder Modal -->
+<div class="modal" id="folderModal">
+  <div class="modal-content">
+    <h2>新增資料夾</h2>
+    <input type="text" id="folderNameInput" placeholder="例如：bag-large" maxlength="64" autofocus>
+    <div class="modal-hint">名稱只能用英數字、底線、連字號（1-64 字元）</div>
+    <div class="modal-actions">
+      <button id="folderModalCancel">取消</button>
+      <button id="folderModalConfirm" class="primary">建立</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  const AI_RENDER_BASE = location.protocol === 'file:' ? 'https://upload.packigo.tw' : '';
+  const TOKEN_KEY = 'airender_admin_token';
+  const TOKEN_EXP_KEY = 'airender_admin_token_exp';
+
+  // ===== Auth =====
+  function getToken() {
+    const tok = sessionStorage.getItem(TOKEN_KEY);
+    const exp = parseInt(sessionStorage.getItem(TOKEN_EXP_KEY) || '0', 10);
+    if (!tok || !exp || Date.now() / 1000 > exp) {
+      sessionStorage.removeItem(TOKEN_KEY);
+      sessionStorage.removeItem(TOKEN_EXP_KEY);
+      return null;
+    }
+    return tok;
+  }
+
+  async function authFetch(path, opts = {}) {
+    const tok = getToken();
+    if (!tok) throw new Error('UNAUTHORIZED');
+    const headers = Object.assign({}, opts.headers, { 'Authorization': `Bearer ${tok}` });
+    const res = await fetch(`${AI_RENDER_BASE}${path}`, Object.assign({}, opts, { headers }));
+    if (res.status === 401) {
+      sessionStorage.removeItem(TOKEN_KEY);
+      sessionStorage.removeItem(TOKEN_EXP_KEY);
+      throw new Error('UNAUTHORIZED');
+    }
+    return res;
+  }
+
+  document.getElementById('loginForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const pwd = document.getElementById('passwordInput').value;
+    const err = document.getElementById('loginError');
+    const btn = e.target.querySelector('button');
+    err.textContent = '';
+    btn.disabled = true;
+    btn.textContent = '登入中...';
+    try {
+      const res = await fetch(`${AI_RENDER_BASE}/api/v1/admin/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password: pwd }),
+      });
+      if (res.status === 401) {
+        err.textContent = '密碼錯誤';
+        document.getElementById('passwordInput').value = '';
+        return;
+      }
+      if (res.status === 429) {
+        err.textContent = '嘗試次數過多，請稍後再試';
+        return;
+      }
+      if (!res.ok) {
+        err.textContent = `登入失敗 (HTTP ${res.status})`;
+        return;
+      }
+      const data = await res.json();
+      sessionStorage.setItem(TOKEN_KEY, data.token);
+      sessionStorage.setItem(TOKEN_EXP_KEY, String(data.expires_at));
+      showAdmin();
+    } catch (e2) {
+      err.textContent = `連線失敗: ${e2.message}`;
+    } finally {
+      btn.disabled = false;
+      btn.textContent = '登入';
+    }
+  });
+
+  document.getElementById('logoutBtn').addEventListener('click', () => {
+    sessionStorage.removeItem(TOKEN_KEY);
+    sessionStorage.removeItem(TOKEN_EXP_KEY);
+    location.reload();
+  });
+
+  function showAdmin() {
+    document.getElementById('loginPage').style.display = 'none';
+    document.getElementById('adminPage').classList.add('active');
+    loadCurrentTab();
+  }
+
+  if (getToken()) showAdmin();
+
+  // ===== Tabs =====
+  let currentTab = 'history';
+  document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+      document.getElementById('panel-' + btn.dataset.tab).classList.add('active');
+      currentTab = btn.dataset.tab;
+      loadCurrentTab();
+    });
+  });
+
+  document.getElementById('refreshBtn').addEventListener('click', loadCurrentTab);
+
+  function loadCurrentTab() {
+    if (currentTab === 'history') loadHistory();
+    else if (currentTab === 'folders') loadFolders();
+  }
+
+  // ===== History =====
+  let historyPage = 1;
+  const HISTORY_PER_PAGE = 24;
+
+  async function loadHistory() {
+    const content = document.getElementById('historyContent');
+    content.innerHTML = '<div class="loading">載入中...</div>';
+    try {
+      const res = await authFetch(`/api/v1/admin/history?page=${historyPage}&per_page=${HISTORY_PER_PAGE}`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      renderHistoryStats(data);
+      renderHistory(data.entries);
+      renderHistoryPager(data);
+    } catch (e) {
+      if (e.message === 'UNAUTHORIZED') { location.reload(); return; }
+      content.innerHTML = `<div class="error-box">載入失敗: ${e.message}</div>`;
+    }
+  }
+
+  function renderHistoryStats(data) {
+    document.getElementById('historyStats').innerHTML = `
+      <div class="stat-card">
+        <div class="label">渲染總數</div>
+        <div class="value">${data.total}</div>
+      </div>
+      <div class="stat-card">
+        <div class="label">本頁顯示</div>
+        <div class="value">${data.entries.length}</div>
+      </div>
+      <div class="stat-card">
+        <div class="label">當前頁</div>
+        <div class="value">${data.page}</div>
+      </div>
+    `;
+  }
+
+  function renderHistory(entries) {
+    const content = document.getElementById('historyContent');
+    if (!entries.length) {
+      content.innerHTML = '<div class="empty">沒有渲染紀錄</div>';
+      return;
+    }
+    content.innerHTML = `<div class="history-grid">${entries.map(e => `
+      <div class="history-card">
+        <div class="history-card-head">
+          <span class="ts">${fmtDate(e.ts)}</span>
+          <span class="folder">${escapeHtml(e.source_folder)}</span>
+        </div>
+        <div class="history-imgs">
+          <div class="history-img-cell">
+            ${e.user_url
+              ? `<img src="${escapeAttr(e.user_url)}" alt="user" onclick="openLightbox('${escapeAttr(e.user_url)}')" onerror="this.style.background='#fbeaea';this.alt='載入失敗';">`
+              : `<div style="height:180px;display:flex;align-items:center;justify-content:center;color:#86868b;font-size:12px;background:#f5f5f7;border-radius:6px;width:100%">無原圖</div>`}
+            <span class="label">使用者上傳</span>
+            ${e.user_url ? `<a class="download" href="${escapeAttr(e.user_url)}" target="_blank">下載</a>` : ''}
+          </div>
+          <div class="history-img-cell">
+            <img src="${escapeAttr(e.result_url)}" alt="result" onclick="openLightbox('${escapeAttr(e.result_url)}')" onerror="this.style.background='#fbeaea';this.alt='載入失敗';">
+            <span class="label">合成結果</span>
+            <a class="download" href="${escapeAttr(e.result_url)}" target="_blank">下載</a>
+          </div>
+        </div>
+      </div>
+    `).join('')}</div>`;
+  }
+
+  function renderHistoryPager(data) {
+    const totalPages = Math.max(1, Math.ceil(data.total / data.per_page));
+    const pager = document.getElementById('historyPager');
+    pager.innerHTML = `
+      <button ${historyPage <= 1 ? 'disabled' : ''} onclick="changeHistoryPage(${historyPage - 1})">上一頁</button>
+      <span class="pageinfo">${historyPage} / ${totalPages}</span>
+      <button ${historyPage >= totalPages ? 'disabled' : ''} onclick="changeHistoryPage(${historyPage + 1})">下一頁</button>
+    `;
+  }
+
+  window.changeHistoryPage = function (n) {
+    historyPage = Math.max(1, n);
+    loadHistory();
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  // ===== Folders =====
+  async function loadFolders() {
+    const content = document.getElementById('foldersContent');
+    content.innerHTML = '<div class="loading">載入中...</div>';
+    try {
+      const res = await authFetch('/api/v1/admin/folders');
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      renderFolders(data.folders);
+    } catch (e) {
+      if (e.message === 'UNAUTHORIZED') { location.reload(); return; }
+      content.innerHTML = `<div class="error-box">載入失敗: ${e.message}</div>`;
+    }
+  }
+
+  function renderFolders(folders) {
+    const content = document.getElementById('foldersContent');
+    if (!folders.length) {
+      content.innerHTML = '<div class="empty">尚無資料夾，點擊上方「+ 新增資料夾」開始</div>';
+      return;
+    }
+    content.innerHTML = folders.map(f => `
+      <div class="folder-card" data-folder="${escapeAttr(f.name)}">
+        <div class="folder-card-head">
+          <div>
+            <span class="name">${escapeHtml(f.name)}</span>
+            <span class="count">${f.image_count} 張底圖</span>
+          </div>
+          <div class="actions">
+            <input type="file" class="upload-input" accept="image/*" multiple style="display:none">
+            <button class="primary upload-btn">上傳底圖</button>
+            <button class="danger delete-folder-btn">刪除資料夾</button>
+          </div>
+        </div>
+        ${f.images.length ? `
+          <div class="folder-images">
+            ${f.images.map(img => `
+              <div class="folder-image-tile">
+                <img src="${escapeAttr(img.url)}" alt="${escapeAttr(img.filename)}"
+                     onclick="openLightbox('${escapeAttr(img.url)}')"
+                     onerror="this.style.background='#fbeaea'">
+                <div class="meta">
+                  <span class="name" title="${escapeAttr(img.filename)}">${escapeHtml(img.filename)}</span>
+                  <button class="delete-image-btn" data-filename="${escapeAttr(img.filename)}">刪除</button>
+                </div>
+              </div>
+            `).join('')}
+          </div>
+        ` : '<div class="folder-empty-msg">此資料夾還沒有底圖，點上傳開始</div>'}
+      </div>
+    `).join('');
+
+    // 綁定 events
+    content.querySelectorAll('.folder-card').forEach(card => {
+      const folder = card.dataset.folder;
+      card.querySelector('.upload-btn').addEventListener('click', () => {
+        card.querySelector('.upload-input').click();
+      });
+      card.querySelector('.upload-input').addEventListener('change', async (e) => {
+        await uploadFolderImages(folder, e.target.files, card.querySelector('.upload-btn'));
+        e.target.value = '';
+      });
+      card.querySelector('.delete-folder-btn').addEventListener('click', () => deleteFolder(folder));
+      card.querySelectorAll('.delete-image-btn').forEach(btn => {
+        btn.addEventListener('click', () => deleteFolderImage(folder, btn.dataset.filename));
+      });
+    });
+  }
+
+  async function uploadFolderImages(folder, files, btnEl) {
+    if (!files || !files.length) return;
+    const origText = btnEl.textContent;
+    btnEl.disabled = true;
+    try {
+      for (let i = 0; i < files.length; i++) {
+        btnEl.textContent = `上傳 ${i + 1}/${files.length}…`;
+        const fd = new FormData();
+        fd.append('file', files[i]);
+        const res = await authFetch(`/api/v1/admin/folders/${encodeURIComponent(folder)}/images`, {
+          method: 'POST',
+          body: fd,
+        });
+        if (!res.ok) {
+          let detail = `HTTP ${res.status}`;
+          try { const j = await res.json(); detail += ' — ' + (j.detail || JSON.stringify(j)); } catch {}
+          alert(`上傳 ${files[i].name} 失敗：${detail}`);
+        }
+      }
+      await loadFolders();
+    } catch (e) {
+      if (e.message === 'UNAUTHORIZED') { location.reload(); return; }
+      alert(`上傳失敗：${e.message}`);
+    } finally {
+      btnEl.disabled = false;
+      btnEl.textContent = origText;
+    }
+  }
+
+  async function deleteFolder(folder) {
+    if (!confirm(`確定要刪除資料夾「${folder}」及其所有底圖？此動作無法復原。`)) return;
+    try {
+      const res = await authFetch(`/api/v1/admin/folders/${encodeURIComponent(folder)}`, {
+        method: 'DELETE',
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      await loadFolders();
+    } catch (e) {
+      if (e.message === 'UNAUTHORIZED') { location.reload(); return; }
+      alert(`刪除失敗：${e.message}`);
+    }
+  }
+
+  async function deleteFolderImage(folder, filename) {
+    if (!confirm(`刪除底圖「${filename}」？`)) return;
+    try {
+      const res = await authFetch(`/api/v1/admin/folders/${encodeURIComponent(folder)}/images/${encodeURIComponent(filename)}`, {
+        method: 'DELETE',
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      await loadFolders();
+    } catch (e) {
+      if (e.message === 'UNAUTHORIZED') { location.reload(); return; }
+      alert(`刪除失敗：${e.message}`);
+    }
+  }
+
+  // ===== Create folder modal =====
+  const folderModal = document.getElementById('folderModal');
+  const folderNameInput = document.getElementById('folderNameInput');
+
+  document.getElementById('createFolderBtn').addEventListener('click', () => {
+    folderNameInput.value = '';
+    folderModal.classList.add('active');
+    requestAnimationFrame(() => folderNameInput.focus());
+  });
+  document.getElementById('folderModalCancel').addEventListener('click', () => {
+    folderModal.classList.remove('active');
+  });
+  document.getElementById('folderModalConfirm').addEventListener('click', createFolderConfirm);
+  folderNameInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); createFolderConfirm(); }
+    if (e.key === 'Escape') folderModal.classList.remove('active');
+  });
+
+  async function createFolderConfirm() {
+    const name = folderNameInput.value.trim();
+    if (!name) {
+      alert('請輸入資料夾名稱');
+      return;
+    }
+    try {
+      const res = await authFetch('/api/v1/admin/folders', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name }),
+      });
+      if (!res.ok) {
+        let detail = `HTTP ${res.status}`;
+        try { const j = await res.json(); detail += ' — ' + (j.detail || JSON.stringify(j)); } catch {}
+        alert(`建立失敗：${detail}`);
+        return;
+      }
+      folderModal.classList.remove('active');
+      await loadFolders();
+    } catch (e) {
+      if (e.message === 'UNAUTHORIZED') { location.reload(); return; }
+      alert(`建立失敗：${e.message}`);
+    }
+  }
+
+  // ===== Lightbox =====
+  window.openLightbox = function (url) {
+    document.getElementById('lightboxImg').src = url;
+    document.getElementById('lightbox').classList.add('active');
+  };
+  window.closeLightbox = function () {
+    document.getElementById('lightbox').classList.remove('active');
+  };
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') closeLightbox();
+  });
+
+  // ===== Util =====
+  function fmtDate(iso) {
+    if (!iso) return '-';
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return iso;
+    return `${d.getFullYear()}/${String(d.getMonth()+1).padStart(2,'0')}/${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+  }
+
+  function escapeHtml(s) {
+    return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  }
+  function escapeAttr(s) { return escapeHtml(s); }
+</script>
+</body>
+</html>

@@ -1,10 +1,25 @@
+"""Settings 載入優先級：環境變數 > .env > storage/config.json（setup wizard 寫入）> default。
+
+讓首次啟動者可以走 setup wizard 在瀏覽器填 Gemini key + admin 密碼，後端寫進
+storage/config.json。已經用 .env 配好的人完全不受影響（環境變數仍優先）。"""
+
+import json
+from pathlib import Path
+
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+_CONFIG_FILE = Path("/app/storage/config.json")
 
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", case_sensitive=False, extra="ignore")
 
-    gemini_api_key: str
+    # 必要設定（沒設 = 走 setup wizard）。Default 為空字串而非 None，方便 truthy check。
+    gemini_api_key: str = ""
+    admin_password_hash: str = ""
+    admin_session_secret: str = ""
+
     gemini_model: str = "gemini-2.5-flash-image"
     render_prompt: str = (
         "請將第二張圖片自然地渲染與合成到第一張圖片上，保留第一張底圖的光影、"
@@ -39,22 +54,32 @@ class Settings(BaseSettings):
     max_gemini_concurrency: int = 2
     rate_limit_per_min: int = 20
 
-    # Render provider routing: primary first, on any exception fall back to secondary.
-    # Valid names: "gemini", "openclaw". Set fallback to empty string to disable fallback.
-    render_primary: str = "gemini"
-    render_fallback: str = ""
-
-    # OpenClaw bridge (optional fallback provider). Disabled by default.
-    openclaw_bridge_url: str = "http://host.docker.internal:18790"
-    openclaw_bridge_token: str = ""
-    openclaw_model: str = "openai/gpt-image-2"
-    openclaw_timeout_ms: int = 120000
-    max_openclaw_concurrency: int = 1
-
-    # Admin 後台登入：bcrypt hash 的密碼 + HMAC session secret
-    admin_password_hash: str = ""           # bcrypt 產生，例 $2b$12$...
-    admin_session_secret: str = ""          # 隨機 32+ 字元，HMAC 簽 session token 用
     admin_session_hours: int = 8
 
+    def is_configured(self) -> bool:
+        return bool(self.gemini_api_key and self.admin_password_hash and self.admin_session_secret)
 
-settings = Settings()
+
+def _load_config_file() -> dict:
+    if not _CONFIG_FILE.is_file():
+        return {}
+    try:
+        return json.loads(_CONFIG_FILE.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError):
+        return {}
+
+
+def _build_settings() -> Settings:
+    """env / .env 先載入；沒設的欄位用 storage/config.json 補（setup wizard 用）。"""
+    s = Settings()
+    file_cfg = _load_config_file()
+    if not s.gemini_api_key and file_cfg.get("gemini_api_key"):
+        s.gemini_api_key = file_cfg["gemini_api_key"]
+    if not s.admin_password_hash and file_cfg.get("admin_password_hash"):
+        s.admin_password_hash = file_cfg["admin_password_hash"]
+    if not s.admin_session_secret and file_cfg.get("admin_session_secret"):
+        s.admin_session_secret = file_cfg["admin_session_secret"]
+    return s
+
+
+settings = _build_settings()

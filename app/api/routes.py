@@ -29,9 +29,12 @@ from app.schemas.render import (
     RenderRequest,
     RenderResponse,
     RenderResultItem,
+    SetupRequest,
+    SetupResponse,
+    SetupStatusResponse,
     UploadFolderImageResponse,
 )
-from app.services import admin_auth, background_service, image_service
+from app.services import admin_auth, background_service, image_service, setup_service
 from app.services.render import dispatcher as render_dispatcher
 
 
@@ -196,6 +199,35 @@ async def _run_render_job(
         job["status"] = "failed"
         job["error"] = str(e)
         logger.exception("[render-job %s] unexpected failure", job_id)
+
+
+# ============ Setup wizard（未 configured 才開放） ============
+
+@router.get("/setup/status", response_model=SetupStatusResponse)
+async def setup_status():
+    return SetupStatusResponse(
+        configured=settings.is_configured(),
+        needs_gemini_key=not bool(settings.gemini_api_key),
+        needs_admin_password=not bool(settings.admin_password_hash),
+    )
+
+
+@router.post("/setup", response_model=SetupResponse)
+@limiter.limit("5/minute")
+async def setup_submit(request: Request, body: SetupRequest):
+    """初始化設定。已 configured 後拒絕（避免攻擊者重設密碼）。
+    想重置：刪 storage/config.json 並 restart container。"""
+    if settings.is_configured():
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="system already configured; 想重設請刪 storage/config.json 並重啟",
+        )
+    try:
+        setup_service.write_config(body.gemini_api_key, body.admin_password)
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    logger.info("[setup] first-run setup completed")
+    return SetupResponse(success=True)
 
 
 # ============ 公開 endpoints（user 端用，匿名 + IP rate-limit） ============

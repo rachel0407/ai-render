@@ -7,11 +7,7 @@ services:
       - .env
     volumes:
       - ./storage:/app/storage
-      - ./admin.html:/app/admin.html:ro
-      - ./customize.html:/app/customize.html:ro
-    # Reach host's openclaw-bridge (systemd service on docker bridge IP) via host.docker.internal
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
+      - ./frontend:/app/frontend:ro
     networks:
       - traefik-net
     labels:

@@ -8,14 +8,14 @@ venv/
 
 # Secret / 設定（一定不能 commit）
 .env
+# Setup wizard 寫入的設定檔（含 bcrypt hash + session secret + gemini key）
+storage/config.json
 
-# 用戶資料（包含敏感的設計圖 / 訂單關聯，絕對不能上 git）
+# 用戶資料（包含敏感的設計圖，絕對不能上 git）
 storage/source_image/*
 storage/upload_image/*
 storage/result_image/*
-storage/order_image/*
-storage/cart_image/*
-storage/_state/*
+storage/history.jsonl
 # 但保留資料夾結構（每個 storage 子資料夾的 .gitkeep）
 !storage/*/.gitkeep
 

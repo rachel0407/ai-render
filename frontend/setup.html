@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ai-render 初始設定</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue",
+                 "PingFang TC", "Microsoft JhengHei", sans-serif;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: #1d1d1f;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+  }
+  .card {
+    background: #fff;
+    padding: 40px 36px 32px;
+    border-radius: 18px;
+    box-shadow: 0 24px 64px rgba(0,0,0,0.18);
+    width: 460px;
+    max-width: 100%;
+  }
+  .card h1 {
+    font-size: 24px;
+    font-weight: 600;
+    margin-bottom: 6px;
+    text-align: center;
+  }
+  .card .subtitle {
+    text-align: center;
+    color: #86868b;
+    font-size: 13px;
+    margin-bottom: 28px;
+  }
+  .step {
+    background: #f5f5f7;
+    border-radius: 10px;
+    padding: 16px 18px;
+    margin-bottom: 16px;
+    font-size: 13px;
+    color: #6e6e73;
+  }
+  .step strong { color: #1d1d1f; display: block; margin-bottom: 4px; font-size: 14px; }
+  .step a { color: #007aff; text-decoration: none; }
+  .step a:hover { text-decoration: underline; }
+  .field {
+    margin-bottom: 18px;
+  }
+  .field label {
+    display: block;
+    font-size: 13px;
+    color: #1d1d1f;
+    margin-bottom: 6px;
+    font-weight: 500;
+  }
+  .field .hint {
+    font-size: 12px;
+    color: #86868b;
+    margin-top: 4px;
+  }
+  .field input {
+    width: 100%;
+    padding: 11px 14px;
+    border: 1px solid #d2d2d7;
+    border-radius: 10px;
+    font-size: 14px;
+    outline: none;
+    transition: border-color 0.15s;
+    font-family: inherit;
+  }
+  .field input:focus { border-color: #007aff; }
+  .field input.error { border-color: #ff3b30; }
+  button {
+    width: 100%;
+    padding: 13px;
+    background: #1d1d1f;
+    color: #fff;
+    border: none;
+    border-radius: 10px;
+    font-size: 15px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: opacity 0.15s;
+    font-family: inherit;
+  }
+  button:hover { opacity: 0.85; }
+  button:disabled { opacity: 0.55; cursor: progress; }
+  .msg {
+    text-align: center;
+    margin-top: 14px;
+    min-height: 20px;
+    font-size: 13px;
+  }
+  .msg.error { color: #ff3b30; }
+  .msg.success { color: #34c759; }
+  .toggle {
+    background: transparent;
+    border: none;
+    color: #007aff;
+    font-size: 12px;
+    cursor: pointer;
+    padding: 0;
+    margin-top: 4px;
+  }
+
+  /* 完成後的成功畫面 */
+  .done {
+    text-align: center;
+    padding: 16px 0 0;
+  }
+  .done .checkmark {
+    width: 64px;
+    height: 64px;
+    margin: 0 auto 16px;
+    border-radius: 50%;
+    background: #34c759;
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 32px;
+    font-weight: 600;
+  }
+  .done h2 { font-size: 18px; margin-bottom: 6px; }
+  .done p { color: #6e6e73; font-size: 13px; margin-bottom: 20px; }
+  .done .actions {
+    display: flex;
+    gap: 8px;
+  }
+  .done .actions a {
+    flex: 1;
+    padding: 11px;
+    border-radius: 10px;
+    font-size: 14px;
+    text-decoration: none;
+    text-align: center;
+    transition: opacity 0.15s;
+  }
+  .done .actions a.primary {
+    background: #007aff;
+    color: #fff;
+  }
+  .done .actions a.secondary {
+    background: #f0f0f2;
+    color: #1d1d1f;
+  }
+  .done .actions a:hover { opacity: 0.85; }
+
+  .already {
+    text-align: center;
+    padding: 40px 0;
+  }
+  .already h2 { font-size: 18px; margin-bottom: 6px; }
+  .already p { color: #6e6e73; font-size: 13px; margin-bottom: 18px; }
+  .already a {
+    color: #007aff;
+    text-decoration: none;
+    font-size: 14px;
+  }
+</style>
+</head>
+<body>
+
+<div class="card" id="card">
+  <!-- Loading -->
+  <div id="loadingView">
+    <h1>ai-render</h1>
+    <div class="subtitle">檢查設定狀態中...</div>
+  </div>
+
+  <!-- 已 configured：提示用戶不需要設定 -->
+  <div id="alreadyView" style="display:none">
+    <h1>ai-render</h1>
+    <div class="subtitle">系統已設定完成</div>
+    <div class="already">
+      <h2>✓ 不需要再次設定</h2>
+      <p>如果你想重新設定，請刪除 <code>storage/config.json</code> 並重啟容器。</p>
+      <div style="display:flex;gap:8px;justify-content:center">
+        <a href="/" style="color:#007aff;text-decoration:none">→ 使用者端</a>
+        <span style="color:#d2d2d7">|</span>
+        <a href="/admin" style="color:#007aff;text-decoration:none">→ 後台</a>
+      </div>
+    </div>
+  </div>
+
+  <!-- Setup form -->
+  <form id="setupView" style="display:none">
+    <h1>歡迎使用 ai-render</h1>
+    <div class="subtitle">首次啟動，請完成以下兩項設定</div>
+
+    <div class="step">
+      <strong>① 取得 Gemini API key</strong>
+      到 <a href="https://aistudio.google.com/apikey" target="_blank">Google AI Studio</a>
+      → 登入 → 「Create API key」→ 複製貼到下面
+    </div>
+
+    <div class="field">
+      <label for="geminiKey">Gemini API key</label>
+      <input type="password" id="geminiKey" placeholder="AIza..." autocomplete="off" autofocus>
+      <button type="button" class="toggle" id="toggleKey">顯示</button>
+      <div class="hint">會存到 storage/config.json，請勿外洩</div>
+    </div>
+
+    <div class="step">
+      <strong>② 設一組後台密碼</strong>
+      之後在 <code>/admin</code> 用這組密碼登入（管理產品資料夾、看渲染歷史）。至少 6 字。
+    </div>
+
+    <div class="field">
+      <label for="adminPwd">後台密碼</label>
+      <input type="password" id="adminPwd" placeholder="至少 6 字" autocomplete="new-password">
+    </div>
+    <div class="field">
+      <label for="adminPwdConfirm">再次輸入密碼</label>
+      <input type="password" id="adminPwdConfirm" placeholder="重複上面那組" autocomplete="new-password">
+    </div>
+
+    <button type="submit" id="submitBtn">完成設定</button>
+    <div class="msg" id="msg"></div>
+  </form>
+
+  <!-- Done -->
+  <div id="doneView" style="display:none">
+    <div class="done">
+      <div class="checkmark">✓</div>
+      <h2>設定完成</h2>
+      <p>API key 與後台密碼已寫入 storage/config.json。可以開始用了。</p>
+      <div class="actions">
+        <a href="/" class="primary">開始使用</a>
+        <a href="/admin" class="secondary">進後台</a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  const AI_RENDER_BASE = location.protocol === 'file:' ? '' : '';
+
+  const loadingView = document.getElementById('loadingView');
+  const alreadyView = document.getElementById('alreadyView');
+  const setupView = document.getElementById('setupView');
+  const doneView = document.getElementById('doneView');
+
+  const geminiKeyInput = document.getElementById('geminiKey');
+  const adminPwdInput = document.getElementById('adminPwd');
+  const adminPwdConfirmInput = document.getElementById('adminPwdConfirm');
+  const submitBtn = document.getElementById('submitBtn');
+  const msg = document.getElementById('msg');
+
+  function showView(v) {
+    loadingView.style.display = 'none';
+    alreadyView.style.display = 'none';
+    setupView.style.display = 'none';
+    doneView.style.display = 'none';
+    v.style.display = '';
+  }
+
+  // 顯示/隱藏 API key
+  document.getElementById('toggleKey').addEventListener('click', () => {
+    const btn = document.getElementById('toggleKey');
+    if (geminiKeyInput.type === 'password') {
+      geminiKeyInput.type = 'text';
+      btn.textContent = '隱藏';
+    } else {
+      geminiKeyInput.type = 'password';
+      btn.textContent = '顯示';
+    }
+  });
+
+  async function checkStatus() {
+    try {
+      const res = await fetch(`${AI_RENDER_BASE}/api/v1/setup/status`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      if (data.configured) {
+        showView(alreadyView);
+      } else {
+        showView(setupView);
+      }
+    } catch (e) {
+      msg.className = 'msg error';
+      msg.textContent = `無法連線到伺服器：${e.message}`;
+      showView(setupView);
+    }
+  }
+
+  document.getElementById('setupView').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    msg.textContent = '';
+    msg.className = 'msg';
+
+    const geminiKey = geminiKeyInput.value.trim();
+    const pwd = adminPwdInput.value;
+    const pwdConfirm = adminPwdConfirmInput.value;
+
+    // Validation
+    geminiKeyInput.classList.remove('error');
+    adminPwdInput.classList.remove('error');
+    adminPwdConfirmInput.classList.remove('error');
+
+    if (geminiKey.length < 10) {
+      geminiKeyInput.classList.add('error');
+      msg.className = 'msg error';
+      msg.textContent = 'Gemini API key 看起來不對（太短）';
+      return;
+    }
+    if (pwd.length < 6) {
+      adminPwdInput.classList.add('error');
+      msg.className = 'msg error';
+      msg.textContent = '密碼至少 6 字';
+      return;
+    }
+    if (pwd !== pwdConfirm) {
+      adminPwdConfirmInput.classList.add('error');
+      msg.className = 'msg error';
+      msg.textContent = '兩次密碼不一致';
+      return;
+    }
+
+    submitBtn.disabled = true;
+    submitBtn.textContent = '設定中…';
+
+    try {
+      const res = await fetch(`${AI_RENDER_BASE}/api/v1/setup`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          gemini_api_key: geminiKey,
+          admin_password: pwd,
+        }),
+      });
+      if (res.status === 409) {
+        msg.className = 'msg error';
+        msg.textContent = '系統已經設定過了';
+        await new Promise(r => setTimeout(r, 1500));
+        showView(alreadyView);
+        return;
+      }
+      if (res.status === 429) {
+        msg.className = 'msg error';
+        msg.textContent = '嘗試次數過多，請稍後再試';
+        return;
+      }
+      if (!res.ok) {
+        let detail = `HTTP ${res.status}`;
+        try { const j = await res.json(); detail = j.detail || JSON.stringify(j); } catch {}
+        msg.className = 'msg error';
+        msg.textContent = `設定失敗：${detail}`;
+        return;
+      }
+      showView(doneView);
+    } catch (e2) {
+      msg.className = 'msg error';
+      msg.textContent = `設定失敗：${e2.message}`;
+    } finally {
+      submitBtn.disabled = false;
+      submitBtn.textContent = '完成設定';
+    }
+  });
+
+  checkStatus();
+</script>
+</body>
+</html>

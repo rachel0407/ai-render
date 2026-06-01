@@ -5,5 +5,7 @@ __pycache__
 .env
 .venv
 venv
+storage/config.json
 storage/upload_image/*
 storage/result_image/*
+storage/history.jsonl

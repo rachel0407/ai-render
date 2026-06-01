@@ -4,7 +4,7 @@ from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
@@ -21,6 +21,11 @@ async def lifespan(app: FastAPI):
     for d in (settings.source_dir, settings.upload_dir, settings.result_dir):
         Path(d).mkdir(parents=True, exist_ok=True)
     Path(settings.history_file).parent.mkdir(parents=True, exist_ok=True)
+    if not settings.is_configured():
+        logger.warning(
+            "[startup] 系統尚未 configured（缺 gemini_api_key / admin_password_hash / "
+            "admin_session_secret）。/ 跟 /admin 會被導到 /setup wizard。"
+        )
     yield
 
 
@@ -43,16 +48,25 @@ app.mount("/result", StaticFiles(directory=settings.result_dir), name="result")
 
 @app.get("/health")
 async def health():
-    return {"status": "ok"}
+    return {"status": "ok", "configured": settings.is_configured()}
 
 
 @app.get("/", include_in_schema=False)
 async def customize_page():
-    """User 端入口 — 匿名上傳 → 去背 → 渲染。"""
-    return FileResponse("/app/customize.html", media_type="text/html")
+    """User 端入口。沒 configured 先導去 setup wizard。"""
+    if not settings.is_configured():
+        return RedirectResponse(url="/setup", status_code=303)
+    return FileResponse("/app/frontend/customize.html", media_type="text/html")
 
 
 @app.get("/admin", include_in_schema=False)
 async def admin_page():
-    """後台 HTML（auth 在前端登入後 POST /api/v1/admin/login 拿 token）。"""
-    return FileResponse("/app/admin.html", media_type="text/html")
+    if not settings.is_configured():
+        return RedirectResponse(url="/setup", status_code=303)
+    return FileResponse("/app/frontend/admin.html", media_type="text/html")
+
+
+@app.get("/setup", include_in_schema=False)
+async def setup_page():
+    """Setup wizard。已 configured 後仍可開啟（頁面內部會顯示「已設定完成」訊息）。"""
+    return FileResponse("/app/frontend/setup.html", media_type="text/html")

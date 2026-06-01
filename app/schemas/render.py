@@ -111,3 +111,20 @@ class UploadFolderImageResponse(BaseModel):
     filename: str
     url: str
     size: int
+
+
+# ============ Setup wizard ============
+
+class SetupStatusResponse(BaseModel):
+    configured: bool
+    needs_gemini_key: bool
+    needs_admin_password: bool
+
+
+class SetupRequest(BaseModel):
+    gemini_api_key: str = Field(..., min_length=10, description="Google AI Studio 拿的 Gemini API key")
+    admin_password: str = Field(..., min_length=6, description="後台登入密碼（前端輸入；後端 bcrypt hash）")
+
+
+class SetupResponse(BaseModel):
+    success: bool

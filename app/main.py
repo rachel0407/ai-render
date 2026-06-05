@@ -16,11 +16,15 @@ from app.config import settings
 logger = logging.getLogger(__name__)
 
 
-@asynccontextmanager
-async def lifespan(app: FastAPI):
+def ensure_storage_dirs() -> None:
     for d in (settings.source_dir, settings.upload_dir, settings.result_dir):
         Path(d).mkdir(parents=True, exist_ok=True)
     Path(settings.history_file).parent.mkdir(parents=True, exist_ok=True)
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    ensure_storage_dirs()
     if not settings.is_configured():
         logger.warning(
             "[startup] 系統尚未 configured（缺 gemini_api_key / admin_password_hash / "
@@ -41,6 +45,7 @@ app.add_middleware(
 )
 
 app.include_router(router, prefix="/api/v1")
+ensure_storage_dirs()
 app.mount("/source", StaticFiles(directory=settings.source_dir), name="source")
 app.mount("/upload", StaticFiles(directory=settings.upload_dir), name="upload")
 app.mount("/result", StaticFiles(directory=settings.result_dir), name="result")

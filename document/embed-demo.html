@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ai-render 嵌入測試（母網頁範例）</title>
+<style>
+  body { font-family: -apple-system, "PingFang TC", "Microsoft JhengHei", sans-serif; margin: 0; background: #fafafa; color: #1d1d1f; }
+  header { padding: 16px 20px; background: #fff; border-bottom: 1px solid #e8e8ed; }
+  header h1 { font-size: 16px; margin: 0 0 6px; }
+  header .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; font-size: 13px; }
+  header input { flex: 1; min-width: 280px; padding: 7px 10px; border: 1px solid #d2d2d7; border-radius: 7px; font-size: 13px; }
+  header button { padding: 7px 14px; border: 1px solid #0071e3; background: #0071e3; color: #fff; border-radius: 7px; cursor: pointer; font-size: 13px; }
+  .wrap { display: grid; grid-template-columns: 1fr 360px; gap: 16px; padding: 16px 20px; align-items: start; }
+  iframe { width: 100%; height: 820px; border: 1px solid #e8e8ed; border-radius: 10px; background: #fff; }
+  .log { background: #0b0b0c; color: #d6f5d6; font-family: ui-monospace, Menlo, monospace; font-size: 12px; border-radius: 10px; padding: 12px; height: 820px; overflow: auto; }
+  .log .t { color: #6cf; }
+  .log .e { color: #f88; }
+  @media (max-width: 900px) { .wrap { grid-template-columns: 1fr; } .log { height: 280px; } }
+</style>
+</head>
+<body>
+  <header>
+    <h1>ai-render 嵌入測試 — 母網頁範例</h1>
+    <div class="row">
+      <input id="src" value="http://localhost:8000/?embed=1&folder=tshirt"
+             placeholder="https://<你的-ai-render-網域>/?embed=1&folder=<產品>">
+      <button id="load">載入 iframe</button>
+      <label><input type="checkbox" id="autoheight" checked> 依 resize 事件自動調高度</label>
+    </div>
+  </header>
+
+  <div class="wrap">
+    <iframe id="frame" title="ai-render"></iframe>
+    <div class="log" id="log"></div>
+  </div>
+
+<script>
+  const frame = document.getElementById('frame');
+  const logEl = document.getElementById('log');
+  const srcInput = document.getElementById('src');
+  const autoHeight = document.getElementById('autoheight');
+
+  function log(type, obj) {
+    const line = document.createElement('div');
+    const cls = type === 'render-error' ? 'e' : 't';
+    line.innerHTML = `<span class="${cls}">[${type}]</span> ` +
+      (obj ? escapeHtml(JSON.stringify(obj)) : '');
+    logEl.prepend(line);
+  }
+  function escapeHtml(s){return String(s).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));}
+
+  function loadFrame() {
+    frame.src = srcInput.value;
+    log('(載入)', { src: srcInput.value });
+  }
+  document.getElementById('load').addEventListener('click', loadFrame);
+
+  window.addEventListener('message', (e) => {
+    const msg = e.data;
+    if (!msg || msg.source !== 'ai-render') return;
+    const { source, type, ...rest } = msg;
+    log(type, rest);
+
+    if (type === 'resize' && autoHeight.checked && msg.height) {
+      frame.style.height = msg.height + 'px';
+    }
+    if (type === 'render-complete') {
+      // 商家整合點：把 msg.results[].resultUrl 接到「加入購物車」
+      (msg.results || []).forEach(r => log('  → resultUrl', r.resultUrl));
+    }
+  });
+
+  loadFrame();
+</script>
+</body>
+</html>

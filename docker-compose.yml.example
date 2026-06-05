@@ -1,0 +1,73 @@
+# ─────────────────────────────────────────────────────────────────────
+# ai-render 部署範本
+#
+#   cp docker-compose.yml.example docker-compose.yml
+#   # 然後擇一模式（見下），改好後：
+#   docker compose up -d --build
+#
+# 兩種模式擇一：
+#
+#   【模式 A】Port 直接對外   ← 預設啟用，最簡單、最通用
+#       適合：本機測試、內網、或前面已經有自己的 Nginx / Caddy / 雲端 LB。
+#       這份 compose 本身不處理 HTTPS；要 HTTPS 就在前面接你自己的反向代理。
+#
+#   【模式 B】Traefik + 網域 + 自動 HTTPS 憑證   ← 想一站式 HTTPS 選這個
+#       1. 在模式 A 的 `ports:` 兩行前面各加一個 `# ` 把它註解掉
+#       2. 解開模式 B：把 service 內 `networks:` / `labels:` 區塊、以及檔案最底下外部
+#          `networks:` 區塊，每行最前面的 `# ` 拿掉（行首對齊的 4 個空白要保留）。
+#          備註：以「#」開頭的純說明行（HTTPS router、Rate limit 那種）可以留著當註解。
+#       3. 把 your-host.example.com 換成你的網域（兩處）
+#       4. 把 certresolver 名稱改成你 Traefik 裡定義的那個（鐵則：兩邊名字必須一致，
+#          詳見 README「Traefik 設定」的範例 A / B）
+# ─────────────────────────────────────────────────────────────────────
+
+services:
+  api:
+    build: .
+    # 若改用預先 build 好的 image（之後推上 registry），把上面 build 改成：
+    # image: ghcr.io/<你的帳號>/ai-render:latest
+    container_name: ai-render
+    restart: unless-stopped
+    env_file:
+      - path: .env
+        required: false
+    volumes:
+      - ./storage:/app/storage
+      - ./frontend:/app/frontend:ro
+
+    # ===== 模式 A：Port 直接對外（預設啟用）=====
+    ports:
+      - "8000:8000"          # 主機:容器。前面自己接 proxy 處理 HTTPS（或本機測試直接用）
+
+    # ===== 模式 B：Traefik（要用的話：解開下面 networks + labels，並把上面 ports 註解掉）=====
+    # networks:
+    #   - traefik_network
+    # labels:
+    #   - "traefik.enable=true"
+    #   - "traefik.docker.network=traefik_network"
+    #
+    #   # HTTPS router（your-host.example.com 換成你的網域）
+    #   - "traefik.http.routers.airender.rule=Host(`your-host.example.com`)"
+    #   - "traefik.http.routers.airender.entrypoints=websecure"
+    #   - "traefik.http.routers.airender.tls=true"
+    #   # ⚠ certresolver 名字必須和你 Traefik 裡定義的一致（HTTP challenge 通常叫 myresolver；
+    #   #   Cloudflare DNS challenge 範例叫 cloudflare）。見 README「Traefik 設定」。
+    #   - "traefik.http.routers.airender.tls.certresolver=myresolver"
+    #   - "traefik.http.services.airender.loadbalancer.server.port=8000"
+    #
+    #   # HTTP → HTTPS 轉址
+    #   - "traefik.http.routers.airender-http.rule=Host(`your-host.example.com`)"
+    #   - "traefik.http.routers.airender-http.entrypoints=web"
+    #   - "traefik.http.routers.airender-http.middlewares=airender-redirect"
+    #   - "traefik.http.middlewares.airender-redirect.redirectscheme.scheme=https"
+    #   - "traefik.http.middlewares.airender-redirect.redirectscheme.permanent=true"
+    #
+    #   # Rate limit（30 req/s 平均、burst 10）
+    #   - "traefik.http.middlewares.airender-ratelimit.ratelimit.average=30"
+    #   - "traefik.http.middlewares.airender-ratelimit.ratelimit.burst=10"
+    #   - "traefik.http.routers.airender.middlewares=airender-ratelimit"
+
+# ===== 模式 B 要用的外部 network（要用就解開；先 `docker network create traefik_network`）=====
+# networks:
+#   traefik_network:
+#     external: true

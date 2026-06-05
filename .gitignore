@@ -8,6 +8,8 @@ venv/
 
 # Secret / 設定（一定不能 commit）
 .env
+# 各自部署時從 docker-compose.yml.example 複製產生（含自己的網域 / 模式選擇），不進版控
+docker-compose.yml
 # Setup wizard 寫入的設定檔（含 bcrypt hash + session secret + gemini key）
 storage/config.json
 

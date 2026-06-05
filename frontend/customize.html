@@ -389,6 +389,12 @@
     z-index: 5;
   }
 
+  /* ===== Embed 模式（被商家網站以 iframe 嵌入時）===== */
+  body.embed { background: #fff; }
+  /* 鎖定單一產品時：隱藏「產品」選單與產品挑選面板，使用者只會看到上傳/預覽 */
+  body.embed.locked .nav-item[data-tab="products"] { display: none; }
+  body.embed.locked #panel-products { display: none !important; }
+
   @media (max-width: 768px) {
     html, body { height: auto; min-height: 100%; }
     body { background: #fff; overflow-x: hidden; }
@@ -551,6 +557,51 @@
   const SOURCE_IMAGE_BASE = `${AI_RENDER_BASE}/source`;
   const REMOVE_BG_TIMEOUT_MS = 60 * 1000;
 
+  // ===== Embed 模式（被商家網站以 iframe 嵌入）=====
+  // ?embed=1        → 進入嵌入模式（套用 embed 樣式）
+  // ?folder=名稱    → 預先選定並鎖定單一產品（商家通常一個商品頁鎖一個資料夾）
+  const EMBED_PARAMS = new URLSearchParams(location.search);
+  const IS_EMBED = ['1', 'true', 'yes'].includes((EMBED_PARAMS.get('embed') || '').toLowerCase());
+  const LOCK_FOLDER = EMBED_PARAMS.get('folder');
+  const IN_IFRAME = !!(window.parent && window.parent !== window);
+
+  if (IS_EMBED) document.body.classList.add('embed');
+  // 注意：'locked'（藏掉產品挑選）等確認 ?folder= 真的存在後才在 maybeApplyLockedFolder 套用，
+  // 避免 folder 名稱打錯時把挑選面板藏掉、使用者卡在空白畫面。
+
+  // 對母網頁廣播事件。母網頁監聽：
+  //   window.addEventListener('message', e => { if (e.data?.source === 'ai-render') {...} })
+  // type: 'ready' | 'resize' | 'render-start' | 'render-complete' | 'render-error'
+  function postToParent(type, detail = {}) {
+    if (!IN_IFRAME) return;
+    try { window.parent.postMessage({ source: 'ai-render', type, ...detail }, '*'); }
+    catch (_) {}
+  }
+
+  let _lastPostedHeight = 0;
+  function postHeight() {
+    if (!IN_IFRAME) return;
+    const h = Math.ceil(document.documentElement.scrollHeight || document.body.scrollHeight || 0);
+    if (h && h !== _lastPostedHeight) {
+      _lastPostedHeight = h;
+      postToParent('resize', { height: h });
+    }
+  }
+
+  // 渲染完成時，把結果（含可直接引用的 result URL）回傳給商家網站，
+  // 方便商家把客人做好的設計圖接到「加入購物車」流程。
+  function postRenderComplete() {
+    if (!IN_IFRAME) return;
+    const origin = location.origin;
+    const results = renderResults.map(r => ({
+      side: r.side || null,
+      sourceFilename: r.source_filename || null,
+      resultFilename: r.result_filename || null,
+      resultUrl: r.result_filename ? `${origin}/result/${encodeURIComponent(r.result_filename)}` : null,
+    }));
+    postToParent('render-complete', { folder: currentFolderName, results });
+  }
+
   let SOURCE_FOLDERS = [];
   let currentFolderName = null;
   let renderResults = [];
@@ -578,12 +629,12 @@
     products: document.getElementById('panel-products'),
     photos:   document.getElementById('panel-photos'),
   };
-  navItems.forEach(n => n.addEventListener('click', () => {
-    navItems.forEach(x => x.classList.remove('active'));
-    n.classList.add('active');
-    Object.values(panels).forEach(p => p.classList.add('hidden'));
-    panels[n.dataset.tab].classList.remove('hidden');
-  }));
+  function activateTab(tab) {
+    if (!panels[tab]) return;
+    navItems.forEach(x => x.classList.toggle('active', x.dataset.tab === tab));
+    Object.entries(panels).forEach(([key, p]) => p.classList.toggle('hidden', key !== tab));
+  }
+  navItems.forEach(n => n.addEventListener('click', () => activateTab(n.dataset.tab)));
 
   // ===== Folder list =====
   async function loadSourceFolders() {
@@ -594,6 +645,7 @@
       const data = await res.json();
       SOURCE_FOLDERS = data.folders || [];
       renderFolderList();
+      maybeApplyLockedFolder();
     } catch (e) {
       folderListEl.innerHTML = `<div style="color:#c62828;font-size:13px;padding:8px 4px;">載入失敗：${e.message}</div>`;
     }
@@ -639,6 +691,18 @@
     refreshPhotoListForSide();
     refreshSideTabs();
     renderStage();
+  }
+
+  // Embed：?folder= 指定時，自動選定並（嵌入模式下）鎖定該產品、跳到「上傳設計圖」。
+  // 只在第一次套用（currentFolderName 尚未等於鎖定值），避免「重新整理」清掉使用者進度。
+  function maybeApplyLockedFolder() {
+    if (!LOCK_FOLDER) return;
+    if (!SOURCE_FOLDERS.some(f => f.name === LOCK_FOLDER)) return;
+    if (currentFolderName !== LOCK_FOLDER) onSelectFolder(LOCK_FOLDER);
+    if (IS_EMBED) {
+      document.body.classList.add('locked');   // 確認資料夾存在才藏掉產品挑選面板
+      activateTab('photos');
+    }
   }
 
   function getMatchedFolder() {
@@ -1120,6 +1184,7 @@
     renderResults = [];
     carouselIndex = 0;
     renderStage();
+    postToParent('render-start', { folder: currentFolderName });
 
     const tasks = sides.map(side => async () => {
       const s = sideState[side];
@@ -1153,9 +1218,11 @@
       renderResults = results.map(({ side, result }) => ({ ...result, side }));
       carouselIndex = 0;
       renderStatus = 'idle';
+      postRenderComplete();
     } catch (err) {
       renderError = `合成失敗：${err.message}`;
       renderStatus = 'error';
+      postToParent('render-error', { folder: currentFolderName, message: err.message });
     }
     renderStage();
   }
@@ -1367,6 +1434,16 @@
   }
 
   loadSourceFolders();
+
+  // Embed：通知母網頁已就緒，並持續回報內容高度（給 loader script 自動調 iframe 高度用）
+  if (IN_IFRAME) {
+    if ('ResizeObserver' in window) {
+      new ResizeObserver(() => postHeight()).observe(document.body);
+    }
+    window.addEventListener('load', postHeight);
+    postToParent('ready', { embed: IS_EMBED, lockedFolder: LOCK_FOLDER || null });
+    postHeight();
+  }
 </script>
 </body>
 </html>
